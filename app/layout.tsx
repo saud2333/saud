@@ -22,6 +22,9 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
+  verification: {
+    google: "J6Z-5q8TrAFKj1YBncrauRDPR1Tf66SpsrJFJXlr70c",
+  },
   openGraph: {
     type: "website",
     locale: "ar_KW",
