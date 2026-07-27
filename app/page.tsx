@@ -328,7 +328,6 @@ export default function Home() {
             <small>نحو أثر يدوم</small>
           </span>
         </div>
-        <p>تصوّر أولي لمنصة توثّق رحلة البرنامج وأثره.</p>
         <span>الكويت · 2026</span>
       </footer>
     </main>
