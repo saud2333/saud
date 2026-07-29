@@ -91,11 +91,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    await cloudflareRequest(
-      "/user/tokens/verify",
-      apiToken,
-    );
-
     const domainRecords = await cloudflareRequest<CloudflareRecord[]>(
       `/zones/${zoneId}/dns_records?name=${encodeURIComponent(customDomain)}&per_page=100`,
       apiToken,
