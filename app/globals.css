@@ -17,11 +17,13 @@
 }
 
 html {
+  min-height: 100%;
   scroll-behavior: smooth;
   scroll-padding-top: 5rem;
 }
 
 body {
+  min-height: 100%;
   margin: 0;
   background: var(--paper);
   color: var(--ink);
