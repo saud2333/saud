@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://kisr47-sustainability.hsah-otb.chatgpt.site/sitemap.xml
+Sitemap: https://kisr47.kw/sitemap.xml
