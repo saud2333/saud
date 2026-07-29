@@ -28,7 +28,18 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: Tahoma, Arial, "Segoe UI", sans-serif;
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+blockquote {
+  letter-spacing: normal;
+  overflow-wrap: normal;
+  text-wrap: balance;
+  word-break: normal;
 }
 
 a {
@@ -172,7 +183,7 @@ a {
   color: var(--forest);
   font-size: 0.68rem;
   font-weight: 800;
-  letter-spacing: 0.02em;
+  letter-spacing: normal;
 }
 
 .eyebrow span {
@@ -183,10 +194,10 @@ a {
 
 .hero h1 {
   margin: 1.7rem 0 1.4rem;
-  font-size: clamp(3.25rem, 6.6vw, 7.6rem);
+  font-size: clamp(3rem, 5.8vw, 6.8rem);
   font-weight: 800;
-  letter-spacing: -0.075em;
-  line-height: 0.95;
+  letter-spacing: normal;
+  line-height: 1.16;
 }
 
 .hero h1 em,
@@ -391,9 +402,9 @@ a {
 .section-heading h2,
 .story-heading h2 {
   margin: 1.2rem 0 0;
-  font-size: clamp(2.7rem, 5.5vw, 6.4rem);
-  letter-spacing: -0.065em;
-  line-height: 1.04;
+  font-size: clamp(2.5rem, 4.8vw, 5.6rem);
+  letter-spacing: normal;
+  line-height: 1.2;
 }
 
 .intro-copy {
@@ -443,7 +454,8 @@ a {
   border-bottom: 1px solid rgba(19, 33, 28, 0.18);
   font-size: clamp(1.2rem, 2.2vw, 2.25rem);
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: normal;
+  line-height: 1.35;
 }
 
 .principles-board aside {
@@ -661,8 +673,8 @@ a {
 .impact-copy h3 {
   margin: 1.2rem 0 1rem;
   font-size: clamp(1.8rem, 3vw, 3.5rem);
-  letter-spacing: -0.05em;
-  line-height: 1.15;
+  letter-spacing: normal;
+  line-height: 1.35;
 }
 
 .impact-copy p {
@@ -730,10 +742,10 @@ a {
 .next-quote blockquote {
   max-width: 930px;
   margin: 4rem 0 0;
-  font-size: clamp(2.4rem, 5vw, 6.2rem);
+  font-size: clamp(2.2rem, 4.4vw, 5.5rem);
   font-weight: 800;
-  letter-spacing: -0.065em;
-  line-height: 1.15;
+  letter-spacing: normal;
+  line-height: 1.35;
 }
 
 .next-quote blockquote em {
@@ -1001,7 +1013,8 @@ footer > span {
 
   .hero h1 {
     margin-top: 1.4rem;
-    font-size: clamp(3.05rem, 16vw, 5.2rem);
+    font-size: clamp(2.7rem, 12vw, 4.4rem);
+    line-height: 1.18;
   }
 
   .hero-actions {
@@ -1051,7 +1064,8 @@ footer > span {
   .section-intro h2,
   .section-heading h2,
   .story-heading h2 {
-    font-size: clamp(2.55rem, 12.4vw, 4.2rem);
+    font-size: clamp(2.25rem, 10vw, 3.6rem);
+    line-height: 1.22;
   }
 
   .principles-board {
@@ -1113,7 +1127,8 @@ footer > span {
   }
 
   .next-quote blockquote {
-    font-size: clamp(2.5rem, 11.5vw, 4.5rem);
+    font-size: clamp(2.15rem, 9.5vw, 3.8rem);
+    line-height: 1.38;
   }
 
   .needed-data {
