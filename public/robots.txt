@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://kisr47.com/sitemap.xml
+Sitemap: https://kisr47.pages.dev/sitemap.xml
