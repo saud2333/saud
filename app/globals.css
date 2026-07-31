@@ -33,6 +33,7 @@ body {
   font-family: Tahoma, Arial, "Segoe UI", sans-serif;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  transition: background 220ms ease, color 220ms ease;
 }
 
 h1,
@@ -54,6 +55,11 @@ button,
 summary,
 a {
   -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input {
+  font: inherit;
 }
 
 ::selection {
@@ -159,6 +165,46 @@ a {
 .desktop-nav a:hover::after,
 .desktop-nav a:focus-visible::after {
   width: 100%;
+}
+
+.header-controls {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.control-button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.72rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.66rem;
+  font-weight: 800;
+  transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.control-button:hover,
+.control-button:focus-visible {
+  border-color: var(--orange);
+  background: var(--paper-strong);
+  transform: translateY(-1px);
+}
+
+.control-icon {
+  display: grid;
+  min-width: 18px;
+  place-items: center;
+  color: var(--orange);
+  font-family: Arial, sans-serif;
+  font-size: 0.9rem;
+  line-height: 1;
 }
 
 .header-link {
@@ -272,30 +318,6 @@ a {
 .button-ghost {
   border: 1px solid var(--pine);
   color: var(--pine);
-}
-
-.hero-meta {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  max-width: 620px;
-  margin-top: 3rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 0.66rem;
-}
-
-.hero-meta span {
-  display: flex;
-  align-items: center;
-  gap: 0.48rem;
-}
-
-.hero-meta b {
-  color: var(--pine);
-  font-family: Arial, sans-serif;
-  font-size: 1.35rem;
 }
 
 .mix-visual {
@@ -443,6 +465,12 @@ a {
   flex: none;
   border-radius: 50%;
   background: var(--orange);
+}
+
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(1rem, 3vw, 3.5rem);
 }
 
 .program-section,
@@ -853,10 +881,54 @@ a {
   line-height: 1.9;
 }
 
+.comparison-interactive {
+  display: grid;
+  align-content: center;
+}
+
+.comparison-interactive > label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+  color: rgba(28,45,38,0.76);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.comparison-interactive > label b {
+  min-width: 58px;
+  padding: 0.5rem 0.65rem;
+  background: var(--pine);
+  color: var(--acid);
+  font-family: Arial, sans-serif;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.comparison-interactive input[type="range"] {
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  cursor: ew-resize;
+  accent-color: var(--orange);
+}
+
+.range-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.15rem;
+  color: rgba(28,45,38,0.58);
+  font-family: Arial, sans-serif;
+  font-size: 0.58rem;
+}
+
 .comparison-bars {
   display: grid;
   align-content: center;
   gap: 1.5rem;
+  margin-top: 2rem;
 }
 
 .comparison-bars > div {
@@ -871,6 +943,7 @@ a {
 .comparison-bars i {
   height: 18px;
   background: var(--pine);
+  transition: width 240ms ease;
 }
 
 .comparison-bars > div:last-child i {
@@ -1013,10 +1086,86 @@ footer .logo-copy small { color: rgba(255,255,255,0.5); }
 footer p { margin: 0; text-align: center; }
 footer > a { justify-self: end; color: var(--acid); font-weight: 800; }
 
+html[dir="ltr"] body {
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+html[dir="ltr"] .desktop-nav a::after {
+  right: auto;
+  left: 0;
+}
+
+html[data-theme="dark"] {
+  --ink: #edf5ef;
+  --paper: #071b15;
+  --paper-strong: #0e2a20;
+  --muted: #a6b6ae;
+  --line: rgba(237, 245, 239, 0.16);
+}
+
+html[data-theme="dark"] .site-header {
+  background: rgba(7, 27, 21, 0.94);
+}
+
+html[data-theme="dark"] .desktop-nav,
+html[data-theme="dark"] .logo-copy small,
+html[data-theme="dark"] .hero-lead {
+  color: #b7c5bd;
+}
+
+html[data-theme="dark"] .logo-mark,
+html[data-theme="dark"] .button-primary {
+  background: var(--acid);
+  color: #0d3025;
+}
+
+html[data-theme="dark"] .eyebrow,
+html[data-theme="dark"] .section-kicker,
+html[data-theme="dark"] .hero h1 em {
+  color: var(--acid);
+}
+
+html[data-theme="dark"] .button-ghost {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+
+html[data-theme="dark"] .section-intro p:first-child {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .learning-grid article:hover,
+html[data-theme="dark"] .source-list > a:hover,
+html[data-theme="dark"] .source-list > a:focus-visible,
+html[data-theme="dark"] .control-button:hover,
+html[data-theme="dark"] .control-button:focus-visible {
+  background: #123126;
+}
+
+html[data-theme="dark"] .lab-section {
+  background: #04130e;
+}
+
+html[data-theme="dark"] .impact-heading .section-kicker {
+  color: #fff3d4;
+}
+
+html[data-theme="dark"] .source-list {
+  border-top-color: var(--ink);
+}
+
+html[data-theme="dark"] .mobile-nav nav {
+  background: #0e2a20;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.38);
+}
+
+html[data-theme="dark"] footer {
+  background: #020b08;
+}
+
 @media (max-width: 1100px) {
-  .site-header { grid-template-columns: 1fr auto; }
-  .desktop-nav,
-  .header-link { display: none; }
+  .site-header { grid-template-columns: 1fr auto auto; gap: 0.75rem; }
+  .desktop-nav { display: none; }
   .mobile-nav { position: relative; display: block; }
   .mobile-nav summary {
     display: flex;
@@ -1098,7 +1247,6 @@ footer > a { justify-self: end; color: var(--acid); font-weight: 800; }
   }
   .hero-actions { align-items: stretch; flex-direction: column; }
   .button { width: 100%; }
-  .hero-meta { grid-template-columns: 1fr; }
   .mix-visual { min-height: 520px; }
   .visual-label { top: 1rem; right: 1rem; }
   .sample-cube { right: 7%; bottom: 17%; }
@@ -1154,6 +1302,12 @@ footer > a { justify-self: end; color: var(--acid); font-weight: 800; }
     line-height: 1.36;
   }
   footer { padding: 1.5rem 1rem; }
+  .control-label { display: none; }
+  .control-button { width: 40px; padding: 0.5rem; }
+  .mobile-nav summary { width: 40px; justify-content: center; font-size: 0; padding: 0.5rem; }
+  .mobile-nav summary span { font-size: 1rem; }
+  .logo-copy strong { max-width: 122px; font-size: 0.7rem; }
+  .logo-copy small { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

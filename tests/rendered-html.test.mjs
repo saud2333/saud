@@ -36,12 +36,15 @@ test("server-renders the completed Arabic Summer Course 47 site", async () => {
   assert.match(html, /طلبة الدورة الصيفية 47/);
   assert.match(html, /نخلط المعرفة\./);
   assert.match(html, /ونبني أثرًا أقل\./);
+  assert.match(html, /English/);
+  assert.match(html, /type="range"/);
   assert.match(html, /href="#program"/);
   assert.match(html, /href="#lab"/);
   assert.match(html, /href="#impact"/);
   assert.match(html, /href="#sources"/);
   assert.match(html, /https:\/\/www\.unep\.org\/resources\/report\/global-status-report-buildings-and-construction-2025-2026/);
   assert.match(html, /https:\/\/www\.iea\.org\/reports\/cement-3/);
+  assert.doesNotMatch(html, /أنواع خلطات|مراحل عملية|class="hero-meta"/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
 });
 
@@ -58,11 +61,19 @@ test("keeps starter-only code out and preserves responsive production metadata",
   assert.match(page, /id="impact"/);
   assert.match(page, /id="sources"/);
   assert.match(page, /الاستدامة بالبناء 47/);
+  assert.match(page, /"use client"/);
+  assert.match(page, /kisr47-language/);
+  assert.match(page, /kisr47-theme/);
+  assert.match(page, /Sustainable Construction 47/);
+  assert.match(page, /type="range"/);
   assert.match(layout, /lang="ar" dir="rtl"/);
   assert.match(layout, /الاستدامة بالبناء 47 \| من الخلطة إلى أثر يدوم/);
   assert.match(layout, /\/og\.png/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
   assert.match(css, /@media \(max-width:\s*620px\)/);
+  assert.match(css, /html\[data-theme="dark"\]/);
+  assert.match(css, /\.header-controls/);
+  assert.doesNotMatch(page, /hero-meta|أنواع خلطات|مراحل عملية/);
   assert.doesNotMatch(page, /SkeletonPreview|codex-preview/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton|site-creator-vinext-starter/);
 
