@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 const siteUrl = "https://kisr47.pages.dev";
-const pageTitle = "استدامة 47 | من الخلطة إلى أثر يدوم";
+const pageTitle = "الاستدامة بالبناء 47 | من الخلطة إلى أثر يدوم";
 const pageDescription =
   "مشروع طلبة الدورة الصيفية 47 يوثّق ما تعلّموه عن المونة والخلطات الخرسانية المستدامة، من القياس والخلط إلى فهم الأثر.";
 
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "ar_KW",
     url: "/",
-    siteName: "استدامة 47",
+    siteName: "الاستدامة بالبناء 47",
     title: pageTitle,
     description:
       "تجربة طلبة الدورة الصيفية 47 في المونة والخلطات الخرسانية المستدامة.",
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
         url: "/og.png",
         width: 1731,
         height: 909,
-        alt: "استدامة 47 — من الخلطة إلى أثر يدوم",
+        alt: "الاستدامة بالبناء 47 — من الخلطة إلى أثر يدوم",
       },
     ],
   },

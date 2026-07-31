@@ -127,7 +127,7 @@ function Logo() {
         <i />
       </span>
       <span className="logo-copy">
-        <strong>استدامة 47</strong>
+        <strong>الاستدامة بالبناء 47</strong>
         <small>الدورة الصيفية</small>
       </span>
     </span>

@@ -32,7 +32,7 @@ test("server-renders the completed Arabic Summer Course 47 site", async () => {
 
   const html = await response.text();
   assert.match(html, /<html[^>]*\blang=["']ar["'][^>]*\bdir=["']rtl["']/i);
-  assert.match(html, /<title>استدامة 47 \| من الخلطة إلى أثر يدوم<\/title>/);
+  assert.match(html, /<title>الاستدامة بالبناء 47 \| من الخلطة إلى أثر يدوم<\/title>/);
   assert.match(html, /طلبة الدورة الصيفية 47/);
   assert.match(html, /نخلط المعرفة\./);
   assert.match(html, /ونبني أثرًا أقل\./);
@@ -57,9 +57,9 @@ test("keeps starter-only code out and preserves responsive production metadata",
   assert.match(page, /id="lab"/);
   assert.match(page, /id="impact"/);
   assert.match(page, /id="sources"/);
-  assert.match(page, /استدامة 47/);
+  assert.match(page, /الاستدامة بالبناء 47/);
   assert.match(layout, /lang="ar" dir="rtl"/);
-  assert.match(layout, /استدامة 47 \| من الخلطة إلى أثر يدوم/);
+  assert.match(layout, /الاستدامة بالبناء 47 \| من الخلطة إلى أثر يدوم/);
   assert.match(layout, /\/og\.png/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
   assert.match(css, /@media \(max-width:\s*620px\)/);
