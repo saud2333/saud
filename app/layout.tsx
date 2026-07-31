@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 const siteUrl = "https://kisr47.pages.dev";
+const pageTitle = "استدامة 47 | من الخلطة إلى أثر يدوم";
+const pageDescription =
+  "مشروع طلبة الدورة الصيفية 47 يوثّق ما تعلّموه عن المونة والخلطات الخرسانية المستدامة، من القياس والخلط إلى فهم الأثر.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "استدامة البناء | نحو أثر يدوم",
-  description:
-    "تصوّر مبدئي لمنصة برنامج الاستدامة في البناء، تعرض المنهجية والأعمال والنتائج بصورة حديثة وواضحة.",
+  title: pageTitle,
+  description: pageDescription,
   alternates: {
     canonical: "/",
   },
@@ -29,10 +31,25 @@ export const metadata: Metadata = {
     type: "website",
     locale: "ar_KW",
     url: "/",
-    siteName: "استدامة البناء",
-    title: "استدامة البناء | نحو أثر يدوم",
+    siteName: "استدامة 47",
+    title: pageTitle,
     description:
-      "برنامج يحوّل الاستدامة في البناء إلى قرارات واضحة قابلة للقياس والتطبيق.",
+      "تجربة طلبة الدورة الصيفية 47 في المونة والخلطات الخرسانية المستدامة.",
+    images: [
+      {
+        url: "/og.png",
+        width: 1731,
+        height: 909,
+        alt: "استدامة 47 — من الخلطة إلى أثر يدوم",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: pageTitle,
+    description:
+      "تجربة طلبة الدورة الصيفية 47 في المونة والخلطات الخرسانية المستدامة.",
+    images: ["/og.png"],
   },
   icons: {
     icon: "/favicon.svg",
