@@ -36,8 +36,8 @@ const translations = {
     light: "فاتح",
     hero: {
       eyebrow: "طلبة الدورة الصيفية 47",
-      titleOne: "نخلط المعرفة.",
-      titleTwo: "ونبني أثرًا أقل.",
+      titleOne: "نصنع المعرفة.",
+      titleTwo: "ونبني أثرًا يدوم.",
       lead: "في برنامج الاستدامة في البناء انتقلنا من السؤال إلى التجربة: تعلّمنا كيف تتكوّن المونة والخرسانة، وكيف يمكن لقرارات صغيرة في الخلطة أن تصنع فرقًا في الأداء والأثر.",
       primary: "اكتشف تجربتنا",
       secondary: "شاهد الأرقام",
@@ -135,8 +135,8 @@ const translations = {
     light: "Light",
     hero: {
       eyebrow: "Summer Course 47 Students",
-      titleOne: "We mix knowledge.",
-      titleTwo: "We build with less impact.",
+      titleOne: "We create knowledge.",
+      titleTwo: "We build an impact that lasts.",
       lead: "In the sustainable construction program, we moved from questions to experiments. We learned how mortar and concrete are made, and how small mix-design decisions can change both performance and environmental impact.",
       primary: "Explore our experience",
       secondary: "See the numbers",

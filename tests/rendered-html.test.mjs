@@ -34,8 +34,8 @@ test("server-renders the completed Arabic Summer Course 47 site", async () => {
   assert.match(html, /<html[^>]*\blang=["']ar["'][^>]*\bdir=["']rtl["']/i);
   assert.match(html, /<title>الاستدامة بالبناء 47 \| من الخلطة إلى أثر يدوم<\/title>/);
   assert.match(html, /طلبة الدورة الصيفية 47/);
-  assert.match(html, /نخلط المعرفة\./);
-  assert.match(html, /ونبني أثرًا أقل\./);
+  assert.match(html, /نصنع المعرفة\./);
+  assert.match(html, /ونبني أثرًا يدوم\./);
   assert.match(html, /English/);
   assert.match(html, /type="range"/);
   assert.match(html, /href="#program"/);
