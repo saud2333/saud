@@ -4,14 +4,15 @@ import test from "node:test";
 
 const templateRoot = new URL("../", import.meta.url);
 
-async function render() {
+async function render(path = "/", init = {}) {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
-    new Request("http://localhost/", {
+    new Request(`http://localhost${path}`, {
       headers: { accept: "text/html" },
+      ...init,
     }),
     {
       ASSETS: {
@@ -29,6 +30,9 @@ test("server-renders the completed Arabic Summer Course 47 site", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+  assert.match(response.headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/);
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
 
   const html = await response.text();
   assert.match(html, /<html[^>]*\blang=["']ar["'][^>]*\bdir=["']rtl["']/i);
@@ -66,9 +70,14 @@ test("keeps starter-only code out and preserves responsive production metadata",
   assert.match(page, /kisr47-theme/);
   assert.match(page, /Sustainable Construction 47/);
   assert.match(page, /type="range"/);
+  assert.match(page, /mobileMenuRef/);
+  assert.match(page, /scrollToCurrentHash/);
+  assert.match(page, /hashchange/);
   assert.match(layout, /lang="ar" dir="rtl"/);
   assert.match(layout, /الاستدامة بالبناء 47 \| من الخلطة إلى أثر يدوم/);
   assert.match(layout, /\/og\.png/);
+  assert.match(layout, /application\/ld\+json/);
+  assert.match(layout, /"@type": "Course"/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
   assert.match(css, /@media \(max-width:\s*620px\)/);
   assert.match(css, /html\[data-theme="dark"\]/);
@@ -78,5 +87,14 @@ test("keeps starter-only code out and preserves responsive production metadata",
   assert.doesNotMatch(packageJson, /react-loading-skeleton|site-creator-vinext-starter/);
 
   await access(new URL("../public/og.png", import.meta.url));
+  await access(new URL("../public/_headers", import.meta.url));
   await assert.rejects(access(new URL("../app/_sites-preview", templateRoot)));
+});
+
+test("rejects unsupported methods with hardened response headers", async () => {
+  const response = await render("/", { method: "POST" });
+  assert.equal(response.status, 405);
+  assert.equal(response.headers.get("allow"), "GET, HEAD");
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.match(response.headers.get("permissions-policy") ?? "", /camera=\(\)/);
 });

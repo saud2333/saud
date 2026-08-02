@@ -5,6 +5,16 @@ const siteUrl = "https://kisr47.pages.dev";
 const pageTitle = "الاستدامة بالبناء 47 | من الخلطة إلى أثر يدوم";
 const pageDescription =
   "مشروع طلبة الدورة الصيفية 47 يوثّق ما تعلّموه عن المونة والخلطات الخرسانية المستدامة، من القياس والخلط إلى فهم الأثر.";
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "Course",
+  name: "الاستدامة بالبناء 47",
+  alternateName: "Sustainable Construction 47",
+  description: pageDescription,
+  url: siteUrl,
+  inLanguage: ["ar", "en"],
+  about: ["Sustainable construction", "Mortar", "Sustainable concrete"],
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -69,6 +79,10 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var saved=localStorage.getItem('kisr47-theme');var theme=saved==='dark'||saved==='light'?saved:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;}catch(e){}})();`,
           }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
       </head>
       <body>{children}</body>

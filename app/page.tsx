@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Language = "ar" | "en";
 type Theme = "light" | "dark";
@@ -18,6 +18,28 @@ const sourceLinks = [
   "https://www.iea.org/reports/cement-3",
   "https://wedocs.unep.org/handle/20.500.11822/47261?show=full",
 ];
+
+const sectionIds = new Set(["top", "program", "lab", "impact", "sources"]);
+
+function scrollToCurrentHash(behavior: ScrollBehavior) {
+  const rawHash = window.location.hash.slice(1);
+  if (!rawHash) return;
+
+  let sectionId: string;
+  try {
+    sectionId = decodeURIComponent(rawHash);
+  } catch {
+    return;
+  }
+
+  if (!sectionIds.has(sectionId)) return;
+  const target = document.getElementById(sectionId);
+  if (!target) return;
+
+  const headerHeight = document.querySelector<HTMLElement>(".site-header")?.offsetHeight ?? 0;
+  const top = window.scrollY + target.getBoundingClientRect().top - headerHeight - 12;
+  window.scrollTo({ top: Math.max(0, top), behavior });
+}
 
 const translations = {
   ar: {
@@ -240,6 +262,7 @@ export default function Home() {
   const [theme, setTheme] = useState<Theme>("light");
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [reduction, setReduction] = useState(10);
+  const mobileMenuRef = useRef<HTMLDetailsElement>(null);
   const t = translations[language];
   const score = 100 - reduction;
   const sectionLinks = ["#program", "#lab", "#impact", "#sources"];
@@ -274,6 +297,30 @@ export default function Home() {
     window.localStorage.setItem("kisr47-theme", theme);
   }, [theme, preferencesReady]);
 
+  useEffect(() => {
+    let secondFrame: number | undefined;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => scrollToCurrentHash("auto"));
+    });
+    const handleHashChange = () => {
+      window.requestAnimationFrame(() => scrollToCurrentHash("smooth"));
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") mobileMenuRef.current?.removeAttribute("open");
+    };
+
+    window.addEventListener("hashchange", handleHashChange);
+    window.addEventListener("pageshow", handleHashChange);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame !== undefined) window.cancelAnimationFrame(secondFrame);
+      window.removeEventListener("hashchange", handleHashChange);
+      window.removeEventListener("pageshow", handleHashChange);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
   return (
     <main id="top" className="site-shell" data-language={language}>
       <header className="site-header">
@@ -292,10 +339,10 @@ export default function Home() {
           </button>
         </div>
 
-        <details className="mobile-nav">
+        <details className="mobile-nav" ref={mobileMenuRef}>
           <summary aria-label={t.menu}>{t.menu} <span aria-hidden="true">☰</span></summary>
           <nav aria-label={t.mobileNavLabel}>
-            {t.nav.map((label, index) => <a href={sectionLinks[index]} key={sectionLinks[index]}>{label}</a>)}
+            {t.nav.map((label, index) => <a href={sectionLinks[index]} key={sectionLinks[index]} onClick={() => mobileMenuRef.current?.removeAttribute("open")}>{label}</a>)}
           </nav>
         </details>
       </header>
