@@ -328,10 +328,10 @@ export default function Home() {
     event.preventDefault();
     event.currentTarget.blur();
     if (closeMobileMenu) mobileMenuRef.current?.removeAttribute("open");
-    if (window.location.hash !== href) window.history.pushState(null, "", href);
-
-    scrollToCurrentHash("auto");
-    window.setTimeout(() => scrollToCurrentHash("smooth"), 50);
+    window.setTimeout(() => {
+      if (window.location.hash !== href) window.location.hash = href;
+      scrollToCurrentHash("auto");
+    }, 0);
   };
 
   return (
