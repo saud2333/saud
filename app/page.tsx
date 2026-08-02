@@ -326,11 +326,12 @@ export default function Home() {
 
   const handleSectionLink = (event: MouseEvent<HTMLAnchorElement>, href: string, closeMobileMenu = false) => {
     event.preventDefault();
+    event.currentTarget.blur();
     if (closeMobileMenu) mobileMenuRef.current?.removeAttribute("open");
     if (window.location.hash !== href) window.history.pushState(null, "", href);
 
     scrollToCurrentHash("auto");
-    window.setTimeout(() => scrollToCurrentHash("smooth"), 0);
+    window.setTimeout(() => scrollToCurrentHash("smooth"), 50);
   };
 
   return (
