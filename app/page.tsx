@@ -325,8 +325,6 @@ export default function Home() {
   }, [preferencesReady]);
 
   const handleSectionLink = (event: MouseEvent<HTMLAnchorElement>, href: string, closeMobileMenu = false) => {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-
     event.preventDefault();
     if (closeMobileMenu) mobileMenuRef.current?.removeAttribute("open");
     if (window.location.hash !== href) window.history.pushState(null, "", href);
