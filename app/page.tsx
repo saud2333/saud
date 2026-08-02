@@ -300,12 +300,16 @@ export default function Home() {
   useEffect(() => {
     if (!preferencesReady) return;
     let secondFrame: number | undefined;
+    let settledHashTimer: number | undefined;
     const firstFrame = window.requestAnimationFrame(() => {
       secondFrame = window.requestAnimationFrame(() => scrollToCurrentHash("auto"));
     });
+    const initialHashTimer = window.setTimeout(() => scrollToCurrentHash("auto"), 500);
     const handleHashChange = () => {
       if (mobileMenuRef.current) mobileMenuRef.current.open = false;
       window.requestAnimationFrame(() => scrollToCurrentHash("smooth"));
+      if (settledHashTimer !== undefined) window.clearTimeout(settledHashTimer);
+      settledHashTimer = window.setTimeout(() => scrollToCurrentHash("auto"), 500);
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") mobileMenuRef.current?.removeAttribute("open");
@@ -318,6 +322,8 @@ export default function Home() {
     return () => {
       window.cancelAnimationFrame(firstFrame);
       if (secondFrame !== undefined) window.cancelAnimationFrame(secondFrame);
+      window.clearTimeout(initialHashTimer);
+      if (settledHashTimer !== undefined) window.clearTimeout(settledHashTimer);
       window.removeEventListener("hashchange", handleHashChange);
       window.removeEventListener("popstate", handleHashChange);
       window.removeEventListener("pageshow", handleHashChange);
@@ -329,7 +335,8 @@ export default function Home() {
     event.currentTarget.blur();
     window.setTimeout(() => {
       if (mobileMenuRef.current) mobileMenuRef.current.open = false;
-    }, 0);
+      scrollToCurrentHash("auto");
+    }, 500);
   };
 
   return (
