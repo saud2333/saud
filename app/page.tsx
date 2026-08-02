@@ -304,6 +304,7 @@ export default function Home() {
       secondFrame = window.requestAnimationFrame(() => scrollToCurrentHash("auto"));
     });
     const handleHashChange = () => {
+      if (mobileMenuRef.current) mobileMenuRef.current.open = false;
       window.requestAnimationFrame(() => scrollToCurrentHash("smooth"));
     };
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -326,7 +327,9 @@ export default function Home() {
 
   const closeMobileMenuAfterNavigation = (event: MouseEvent<HTMLAnchorElement>) => {
     event.currentTarget.blur();
-    window.setTimeout(() => mobileMenuRef.current?.removeAttribute("open"), 0);
+    window.setTimeout(() => {
+      if (mobileMenuRef.current) mobileMenuRef.current.open = false;
+    }, 0);
   };
 
   return (
