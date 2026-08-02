@@ -73,6 +73,7 @@ test("keeps starter-only code out and preserves responsive production metadata",
   assert.match(page, /mobileMenuRef/);
   assert.match(page, /scrollToCurrentHash/);
   assert.match(page, /hashchange/);
+  assert.match(page, /if \(!preferencesReady\) return;/);
   assert.match(layout, /lang="ar" dir="rtl"/);
   assert.match(layout, /الاستدامة بالبناء 47 \| من الخلطة إلى أثر يدوم/);
   assert.match(layout, /\/og\.png/);

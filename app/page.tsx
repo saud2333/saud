@@ -298,6 +298,7 @@ export default function Home() {
   }, [theme, preferencesReady]);
 
   useEffect(() => {
+    if (!preferencesReady) return;
     let secondFrame: number | undefined;
     const firstFrame = window.requestAnimationFrame(() => {
       secondFrame = window.requestAnimationFrame(() => scrollToCurrentHash("auto"));
@@ -319,7 +320,7 @@ export default function Home() {
       window.removeEventListener("pageshow", handleHashChange);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [preferencesReady]);
 
   return (
     <main id="top" className="site-shell" data-language={language}>
