@@ -83,6 +83,7 @@ test("keeps starter-only code out and preserves responsive production metadata",
   assert.match(layout, /"@type": "Course"/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
   assert.match(css, /@media \(max-width:\s*620px\)/);
+  assert.match(css, /inset-inline-end:\s*0/);
   assert.match(css, /html\[data-theme="dark"\]/);
   assert.match(css, /\.header-controls/);
   assert.doesNotMatch(page, /hero-meta|أنواع خلطات|مراحل عملية/);

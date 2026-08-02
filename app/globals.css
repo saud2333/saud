@@ -1182,7 +1182,7 @@ html[data-theme="dark"] footer {
   .mobile-nav nav {
     position: absolute;
     top: calc(100% + 0.65rem);
-    left: 0;
+    inset-inline-end: 0;
     width: 220px;
     display: grid;
     padding: 0.5rem;

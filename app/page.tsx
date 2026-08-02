@@ -329,9 +329,8 @@ export default function Home() {
     if (closeMobileMenu) mobileMenuRef.current?.removeAttribute("open");
     if (window.location.hash !== href) window.history.pushState(null, "", href);
 
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => scrollToCurrentHash("smooth"));
-    });
+    scrollToCurrentHash("auto");
+    window.setTimeout(() => scrollToCurrentHash("smooth"), 0);
   };
 
   return (
