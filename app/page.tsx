@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 
 type Language = "ar" | "en";
 type Theme = "light" | "dark";
@@ -311,16 +311,30 @@ export default function Home() {
     };
 
     window.addEventListener("hashchange", handleHashChange);
+    window.addEventListener("popstate", handleHashChange);
     window.addEventListener("pageshow", handleHashChange);
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.cancelAnimationFrame(firstFrame);
       if (secondFrame !== undefined) window.cancelAnimationFrame(secondFrame);
       window.removeEventListener("hashchange", handleHashChange);
+      window.removeEventListener("popstate", handleHashChange);
       window.removeEventListener("pageshow", handleHashChange);
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [preferencesReady]);
+
+  const handleSectionLink = (event: MouseEvent<HTMLAnchorElement>, href: string, closeMobileMenu = false) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+    event.preventDefault();
+    if (closeMobileMenu) mobileMenuRef.current?.removeAttribute("open");
+    if (window.location.hash !== href) window.history.pushState(null, "", href);
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => scrollToCurrentHash("smooth"));
+    });
+  };
 
   return (
     <main id="top" className="site-shell" data-language={language}>
@@ -328,7 +342,7 @@ export default function Home() {
         <a className="brand-link" href="#top" aria-label={t.backToTopLabel}><Logo language={language} /></a>
 
         <nav className="desktop-nav" aria-label={t.navLabel}>
-          {t.nav.map((label, index) => <a href={sectionLinks[index]} key={sectionLinks[index]}>{label}</a>)}
+          {t.nav.map((label, index) => <a href={sectionLinks[index]} key={sectionLinks[index]} onClick={(event) => handleSectionLink(event, sectionLinks[index])}>{label}</a>)}
         </nav>
 
         <div className="header-controls">
@@ -343,7 +357,7 @@ export default function Home() {
         <details className="mobile-nav" ref={mobileMenuRef}>
           <summary aria-label={t.menu}>{t.menu} <span aria-hidden="true">☰</span></summary>
           <nav aria-label={t.mobileNavLabel}>
-            {t.nav.map((label, index) => <a href={sectionLinks[index]} key={sectionLinks[index]} onClick={() => mobileMenuRef.current?.removeAttribute("open")}>{label}</a>)}
+            {t.nav.map((label, index) => <a href={sectionLinks[index]} key={sectionLinks[index]} onClick={(event) => handleSectionLink(event, sectionLinks[index], true)}>{label}</a>)}
           </nav>
         </details>
       </header>
