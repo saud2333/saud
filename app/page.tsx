@@ -324,14 +324,9 @@ export default function Home() {
     };
   }, [preferencesReady]);
 
-  const handleSectionLink = (event: MouseEvent<HTMLAnchorElement>, href: string, closeMobileMenu = false) => {
-    event.preventDefault();
+  const closeMobileMenuAfterNavigation = (event: MouseEvent<HTMLAnchorElement>) => {
     event.currentTarget.blur();
-    if (closeMobileMenu) mobileMenuRef.current?.removeAttribute("open");
-    window.setTimeout(() => {
-      if (window.location.hash !== href) window.location.hash = href;
-      scrollToCurrentHash("auto");
-    }, 0);
+    window.setTimeout(() => mobileMenuRef.current?.removeAttribute("open"), 0);
   };
 
   return (
@@ -340,7 +335,7 @@ export default function Home() {
         <a className="brand-link" href="#top" aria-label={t.backToTopLabel}><Logo language={language} /></a>
 
         <nav className="desktop-nav" aria-label={t.navLabel}>
-          {t.nav.map((label, index) => <a href={sectionLinks[index]} key={sectionLinks[index]} onClick={(event) => handleSectionLink(event, sectionLinks[index])}>{label}</a>)}
+          {t.nav.map((label, index) => <a href={sectionLinks[index]} key={sectionLinks[index]}>{label}</a>)}
         </nav>
 
         <div className="header-controls">
@@ -355,7 +350,7 @@ export default function Home() {
         <details className="mobile-nav" ref={mobileMenuRef}>
           <summary aria-label={t.menu}>{t.menu} <span aria-hidden="true">☰</span></summary>
           <nav aria-label={t.mobileNavLabel}>
-            {t.nav.map((label, index) => <a href={sectionLinks[index]} key={sectionLinks[index]} onClick={(event) => handleSectionLink(event, sectionLinks[index], true)}>{label}</a>)}
+            {t.nav.map((label, index) => <a href={sectionLinks[index]} key={sectionLinks[index]} onClick={closeMobileMenuAfterNavigation}>{label}</a>)}
           </nav>
         </details>
       </header>
