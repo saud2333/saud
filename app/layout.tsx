@@ -85,7 +85,14 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var allowed={top:1,program:1,lab:1,impact:1,sources:1};function scrollToHash(){var raw=location.hash.slice(1);if(!raw)return;var id;try{id=decodeURIComponent(raw);}catch(e){return;}if(!allowed[id])return;var target=document.getElementById(id);if(!target)return;var header=document.querySelector('.site-header');var offset=header?header.offsetHeight:0;var root=document.documentElement;var previous=root.style.scrollBehavior;root.style.scrollBehavior='auto';window.scrollTo(0,Math.max(0,window.scrollY+target.getBoundingClientRect().top-offset-12));requestAnimationFrame(function(){root.style.scrollBehavior=previous;});}if(document.readyState==='loading'){addEventListener('DOMContentLoaded',scrollToHash,{once:true});}else{scrollToHash();}addEventListener('pageshow',scrollToHash);setTimeout(scrollToHash,0);setTimeout(scrollToHash,250);}());`,
+          }}
+        />
+      </body>
     </html>
   );
 }

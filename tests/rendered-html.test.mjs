@@ -81,6 +81,7 @@ test("keeps starter-only code out and preserves responsive production metadata",
   assert.match(layout, /\/og\.png/);
   assert.match(layout, /application\/ld\+json/);
   assert.match(layout, /"@type": "Course"/);
+  assert.match(layout, /DOMContentLoaded/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
   assert.match(css, /@media \(max-width:\s*620px\)/);
   assert.match(css, /inset-inline-end:\s*0/);
