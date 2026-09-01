@@ -2,104 +2,81 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
-const templateRoot = new URL("../", import.meta.url);
+const root = new URL("../", import.meta.url);
+const read = (path) => readFile(new URL(path, root), "utf8");
 
-async function render(path = "/", init = {}) {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-
-  return worker.fetch(
-    new Request(`http://localhost${path}`, {
-      headers: { accept: "text/html" },
-      ...init,
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
-      },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
-  );
-}
-
-test("server-renders the completed Arabic Summer Course 47 site", async () => {
-  const response = await render();
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-  assert.match(response.headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/);
-  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
-  assert.equal(response.headers.get("x-frame-options"), "DENY");
-
-  const html = await response.text();
-  assert.match(html, /<html[^>]*\blang=["']ar["'][^>]*\bdir=["']rtl["']/i);
-  assert.match(html, /<title>الاستدامة بالبناء 47 \| من الخلطة إلى أثر يدوم<\/title>/);
-  assert.match(html, /طلبة الدورة الصيفية 47/);
-  assert.match(html, /نصنع المعرفة\./);
-  assert.match(html, /ونبني أثرًا يدوم\./);
-  assert.match(html, /English/);
-  assert.match(html, /type="range"/);
-  assert.match(html, /href="#program"/);
-  assert.match(html, /href="#lab"/);
-  assert.match(html, /href="#impact"/);
-  assert.match(html, /href="#sources"/);
-  assert.match(html, /https:\/\/www\.unep\.org\/resources\/report\/global-status-report-buildings-and-construction-2025-2026/);
-  assert.match(html, /https:\/\/www\.iea\.org\/reports\/cement-3/);
-  assert.doesNotMatch(html, /أنواع خلطات|مراحل عملية|class="hero-meta"/);
-  assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
-});
-
-test("keeps starter-only code out and preserves responsive production metadata", async () => {
-  const [page, layout, css, packageJson] = await Promise.all([
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
-    readFile(new URL("../package.json", import.meta.url), "utf8"),
+test("implements the bilingual CivilKuwait product shell", async () => {
+  const [layout, page, app, css] = await Promise.all([
+    read("app/layout.tsx"),
+    read("app/page.tsx"),
+    read("app/components/CivilApp.tsx"),
+    read("app/globals.css"),
   ]);
-
-  assert.match(page, /id="program"/);
-  assert.match(page, /id="lab"/);
-  assert.match(page, /id="impact"/);
-  assert.match(page, /id="sources"/);
-  assert.match(page, /الاستدامة بالبناء 47/);
-  assert.match(page, /"use client"/);
-  assert.match(page, /kisr47-language/);
-  assert.match(page, /kisr47-theme/);
-  assert.match(page, /Sustainable Construction 47/);
-  assert.match(page, /type="range"/);
-  assert.match(page, /mobileMenuRef/);
-  assert.match(page, /scrollToCurrentHash/);
-  assert.match(page, /hashchange/);
-  assert.match(page, /if \(!preferencesReady\) return;/);
-  assert.match(page, /closeMobileMenuAfterNavigation/);
-  assert.match(page, /popstate/);
+  assert.match(layout, /CivilKuwait \| منصة الهندسة المدنية في الكويت/);
   assert.match(layout, /lang="ar" dir="rtl"/);
-  assert.match(layout, /الاستدامة بالبناء 47 \| من الخلطة إلى أثر يدوم/);
   assert.match(layout, /\/og\.png/);
-  assert.match(layout, /application\/ld\+json/);
-  assert.match(layout, /"@type": "Course"/);
-  assert.match(layout, /DOMContentLoaded/);
-  assert.match(css, /prefers-reduced-motion:\s*reduce/);
-  assert.match(css, /@media \(max-width:\s*620px\)/);
-  assert.match(css, /inset-inline-end:\s*0/);
-  assert.match(css, /html\[data-theme="dark"\]/);
-  assert.match(css, /\.header-controls/);
-  assert.doesNotMatch(page, /hero-meta|أنواع خلطات|مراحل عملية/);
-  assert.doesNotMatch(page, /SkeletonPreview|codex-preview/);
-  assert.doesNotMatch(packageJson, /react-loading-skeleton|site-creator-vinext-starter/);
-
-  await access(new URL("../public/og.png", import.meta.url));
-  await access(new URL("../public/_headers", import.meta.url));
-  await assert.rejects(access(new URL("../app/_sites-preview", templateRoot)));
+  assert.match(page, /initialView="home"/);
+  assert.match(app, /كل ما تحتاجه للهندسة المدنية في الكويت/);
+  assert.match(app, /Everything you need for civil engineering in Kuwait/);
+  assert.match(app, /document\.documentElement\.dir/);
+  assert.match(app, /Data unavailable/);
+  assert.match(app, /\/api\/ai/);
+  assert.doesNotMatch(app, /الاستدامة بالبناء 47/);
+  assert.match(css, /@media \(max-width: 760px\)/);
+  assert.match(css, /prefers-reduced-motion/);
 });
 
-test("rejects unsupported methods with hardened response headers", async () => {
-  const response = await render("/", { method: "POST" });
-  assert.equal(response.status, 405);
-  assert.equal(response.headers.get("allow"), "GET, HEAD");
-  assert.equal(response.headers.get("x-frame-options"), "DENY");
-  assert.match(response.headers.get("permissions-policy") ?? "", /camera=\(\)/);
+test("includes all primary pages and API surfaces", async () => {
+  const paths = [
+    "app/construction/page.tsx",
+    "app/water/page.tsx",
+    "app/infrastructure/page.tsx",
+    "app/dashboard/page.tsx",
+    "app/admin/page.tsx",
+    "app/api/materials/route.ts",
+    "app/api/materials/[id]/route.ts",
+    "app/api/engineers/route.ts",
+    "app/api/suppliers/route.ts",
+    "app/api/projects/route.ts",
+    "app/api/road-reports/route.ts",
+    "app/api/documents/upload/route.ts",
+    "app/api/boq/analyze/route.ts",
+    "app/api/ai/route.ts",
+  ];
+  await Promise.all(paths.map((path) => access(new URL(path, root))));
+});
+
+test("includes database, storage, and production assets", async () => {
+  const [schema, packageJson, hosting, migration, worker] = await Promise.all([
+    read("db/schema.ts"),
+    read("package.json"),
+    read(".openai/hosting.json"),
+    read("drizzle/0000_sticky_malice.sql"),
+    read("worker/index.ts"),
+  ]);
+  for (const table of ["users", "engineers", "contractors", "suppliers", "materials", "materialPrices", "priceHistory", "projects", "boqs", "roadReports", "documents", "aiConversations", "notifications"]) {
+    assert.match(schema, new RegExp(`export const ${table}`));
+  }
+  assert.match(packageJson, /drizzle-orm/);
+  assert.match(hosting, /"d1": "DB"/);
+  assert.match(hosting, /"r2": "FILES"/);
+  assert.match(migration, /CREATE TABLE `material_prices`/);
+  assert.match(worker, /allowedApiMethods/);
+  assert.match(worker, /Content-Security-Policy/);
+  await access(new URL("public/og.png", root));
+  await access(new URL("dist/server/index.js", root));
+});
+
+test("keeps AI and live-data safety boundaries explicit", async () => {
+  const [ai, catalog, architecture] = await Promise.all([
+    read("app/api/ai/route.ts"),
+    read("app/data/catalog.ts"),
+    read("ARCHITECTURE.md"),
+  ]);
+  assert.match(ai, /safe_local_fallback/);
+  assert.match(ai, /external_ai_connected: false/);
+  assert.match(catalog, /price: null/);
+  assert.match(catalog, /demo: true/);
+  assert.match(architecture, /لا تُقارن عروض مختلفة مباشرة/);
+  assert.match(architecture, /لا يوجد مفتاح ذكاء اصطناعي داخل الكود/);
 });

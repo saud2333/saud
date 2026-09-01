@@ -13,6 +13,8 @@ interface Env {
       };
     };
   };
+  DB?: unknown;
+  FILES?: unknown;
 }
 
 interface ExecutionContext {
@@ -49,14 +51,16 @@ function secure(response: Response): Response {
 
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    if (request.method !== "GET" && request.method !== "HEAD") {
+    const url = new URL(request.url);
+    const isApi = url.pathname.startsWith("/api/");
+    const allowedApiMethods = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
+
+    if ((!isApi && request.method !== "GET" && request.method !== "HEAD") || (isApi && !allowedApiMethods.has(request.method))) {
       return secure(new Response("Method Not Allowed", {
         status: 405,
-        headers: { Allow: "GET, HEAD" },
+        headers: { Allow: isApi ? "GET, POST, PUT, PATCH, DELETE, OPTIONS" : "GET, HEAD" },
       }));
     }
-
-    const url = new URL(request.url);
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
