@@ -11,12 +11,12 @@ import {
   type LocaleText,
 } from "../data/catalog";
 
-type Language = "ar" | "en";
-type View = "home" | "construction" | "water" | "roads" | "dashboard" | "admin";
+export type Language = "ar" | "en";
+export type View = "home" | "construction" | "water" | "roads" | "dashboard" | "guide" | "admin";
 
-const copy = {
+export const copy = {
   ar: {
-    nav: ["الرئيسية", "الإنشاءات", "المياه", "الطرق والبنية التحتية", "مشروعي"],
+    nav: ["الرئيسية", "الإنشاءات", "المياه", "الطرق والبنية التحتية", "مشروعي", "دليل الاستخدام"],
     heroTag: "KUWAIT CIVIL ENGINEERING HUB · منصة هندسية متكاملة",
     heroTitle: "كل ما تحتاجه للهندسة المدنية في الكويت —",
     heroAccent: "في مكان واحد.",
@@ -137,7 +137,7 @@ const copy = {
     footer: "CivilKuwait — بنية رقمية للهندسة المدنية في الكويت",
   },
   en: {
-    nav: ["Home", "Construction", "Water", "Infrastructure & roads", "My project"],
+    nav: ["Home", "Construction", "Water", "Infrastructure & roads", "My project", "How to use"],
     heroTag: "KUWAIT CIVIL ENGINEERING HUB · ONE ENGINEERING PLATFORM",
     heroTitle: "Everything you need for civil engineering in Kuwait —",
     heroAccent: "in one place.",
@@ -363,7 +363,7 @@ function ConstructionHub({ lang, t, query, setQuery }: { lang: Language; t: type
   </>;
 }
 
-function WaterHub({ lang, t }: { lang: Language; t: typeof copy.ar | typeof copy.en }) {
+export function WaterHub({ lang, t }: { lang: Language; t: typeof copy.ar | typeof copy.en }) {
   const [flow, setFlow] = useState("0.02"); const [length, setLength] = useState("120"); const [diameter, setDiameter] = useState("0.15"); const [c, setC] = useState("130");
   const [head, setHead] = useState("25"); const [eff, setEff] = useState("70");
   const [intensity, setIntensity] = useState("50"); const [area, setArea] = useState("1"); const [runoff, setRunoff] = useState("0.7");
@@ -377,7 +377,7 @@ function WaterHub({ lang, t }: { lang: Language; t: typeof copy.ar | typeof copy
   </section><section className="network-canvas"><div><p className="eyebrow">WATER NETWORK DESIGN</p><h2>{lang === "ar" ? "مساحة شبكة أولية" : "Preliminary network canvas"}</h2><p>{lang === "ar" ? "أضف العقد والأنابيب والخزانات والمضخات، ثم اربط النموذج بمحرك هيدروليكي معتمد قبل استخدامه في مشروع." : "Add nodes, pipes, tanks, and pumps, then connect the model to a validated hydraulic engine before project use."}</p></div><div className="network-visual"><i className="node n1">N1</i><i className="node n2">N2</i><i className="node n3">N3</i><i className="tank">T1</i><span className="pipe p1"/><span className="pipe p2"/><span className="pipe p3"/></div></section><section className="safety-banner"><b>!</b><p>{t.disclaimer}</p></section></>;
 }
 
-function RoadsHub({ lang, t }: { lang: Language; t: typeof copy.ar | typeof copy.en }) {
+export function RoadsHub({ lang, t }: { lang: Language; t: typeof copy.ar | typeof copy.en }) {
   const [aadt, setAadt] = useState("12000"); const [growth, setGrowth] = useState("3"); const [years, setYears] = useState("20");
   const [defect, setDefect] = useState("Pothole"); const [location, setLocation] = useState(""); const [severity, setSeverity] = useState("medium"); const [file, setFile] = useState(""); const [ready, setReady] = useState(false);
   const future = n(aadt) * (1 + n(growth) / 100) ** n(years);
@@ -386,15 +386,15 @@ function RoadsHub({ lang, t }: { lang: Language; t: typeof copy.ar | typeof copy
     <section className="report-section"><div className="report-copy"><span>04</span><h2>{t.reportRoad}</h2><p>{lang === "ar" ? "وثّق الموقع والصورة ووصف المشكلة. تصنيف الصورة بالذكاء الاصطناعي يبقى اقتراحًا يحتاج مراجعة بشرية." : "Capture location, photo, and description. AI image classification remains a suggestion requiring human review."}</p><div className="defect-list">{["Pothole", "Crack", "Rutting", "Drainage", "Settlement", "Damaged kerb"].map((item) => <span key={item}>{item}</span>)}</div></div><form onSubmit={(event) => { event.preventDefault(); setReady(true); }}><label className="field"><span>{t.defect}</span><select value={defect} onChange={(event) => setDefect(event.target.value)}>{["Pothole", "Crack", "Rutting", "Surface Failure", "Drainage Problem", "Settlement", "Damaged Kerb"].map((item) => <option key={item}>{item}</option>)}</select></label><label className="field"><span>{t.location}</span><input required value={location} onChange={(event) => setLocation(event.target.value)}/></label><label className="field"><span>{t.severity}</span><select value={severity} onChange={(event) => setSeverity(event.target.value)}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label><label className="upload"><span>＋</span><b>{file || t.photo}</b><input type="file" accept="image/*" onChange={(event) => setFile(event.target.files?.[0]?.name ?? "")}/></label><button className="button primary" type="submit">{t.createReport}</button>{ready && <p className="success">✓ {t.reportReady}</p>}</form></section><section className="safety-banner"><b>!</b><p>{t.disclaimer}</p></section></>;
 }
 
-function ProjectDashboard({ lang, t, navigate }: { lang: Language; t: typeof copy.ar | typeof copy.en; navigate: (view: View) => void }) {
+export function ProjectDashboard({ lang, t, navigate }: { lang: Language; t: typeof copy.ar | typeof copy.en; navigate: (view: View) => void }) {
   return <><section className="dashboard-hero"><span>MY PROJECT · DEMO WORKSPACE</span><h1>{t.project}</h1><p>{t.projectLead}</p><a className="button primary" href="/signin-with-chatgpt?return_to=/dashboard">{t.signIn} ↗</a></section><section className="metric-grid"><article><span>{t.budget}</span><b>— KWD</b><small>{t.dataUnavailable}</small></article><article><span>{t.spent}</span><b>— KWD</b><small>{t.dataUnavailable}</small></article><article><span>{t.remaining}</span><b>— KWD</b><small>{t.dataUnavailable}</small></article><article><span>{t.tasks}</span><b>0 / 0</b><small>{lang === "ar" ? "أنشئ مشروعًا للبدء" : "Create a project to start"}</small></article></section><section className="dashboard-grid"><article><h2>BOQ</h2><EmptyData t={t}/><button type="button" onClick={() => navigate("construction")}>＋ {lang === "ar" ? "إنشاء BOQ" : "Create BOQ"}</button></article><article><h2>{t.documents}</h2><EmptyData t={t}/><label className="upload"><span>＋</span><b>{lang === "ar" ? "رفع PDF / Excel / صورة" : "Upload PDF / Excel / image"}</b><input type="file"/></label></article><article><h2>{lang === "ar" ? "الفريق والموردون" : "Team and suppliers"}</h2><EmptyData t={t}/><button type="button" onClick={() => navigate("construction")}>＋ {t.engineer}</button></article></section></>;
 }
 
-function AdminDashboard({ t }: { t: typeof copy.ar | typeof copy.en }) {
+export function AdminDashboard({ t }: { t: typeof copy.ar | typeof copy.en }) {
   return <><section className="dashboard-hero admin-hero"><span>ROLE: ADMIN · PROTECTED AREA</span><h1>{t.admin}</h1><p>{t.adminLead}</p></section><section className="admin-layout"><aside>{["Overview", "Engineers", "Contractors", "Suppliers", "Materials", "Projects", "Road reports", "Reviews", "AI logs", "Sources", "Users & roles"].map((item, index) => <button className={index === 0 ? "active" : ""} type="button" key={item}>{item}</button>)}</aside><div><section className="metric-grid small"><article><span>{t.reviewQueue}</span><b>0</b><small>{t.noProduction}</small></article><article><span>Verified records</span><b>0</b><small>{t.noProduction}</small></article><article><span>Open reports</span><b>0</b><small>{t.noProduction}</small></article></section><article className="source-health"><h2>{t.sourceHealth}</h2>{sourceRegistry.map((source) => <div key={source.id}><span><i className="status-dot"/><b>{source.label}</b><small>{source.coverage}</small></span><em>{t.notConnected}</em><button type="button">Configure</button></div>)}</article></div></section></>;
 }
 
-function AiPanel({ lang, t, close }: { lang: Language; t: typeof copy.ar | typeof copy.en; close: () => void }) {
+export function AiPanel({ lang, t, close }: { lang: Language; t: typeof copy.ar | typeof copy.en; close: () => void }) {
   const [discipline, setDiscipline] = useState("Construction AI"); const [message, setMessage] = useState(""); const [reply, setReply] = useState(""); const [loading, setLoading] = useState(false);
   const send = async () => { if (!message.trim()) return; setLoading(true); try { const response = await fetch("/api/ai", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ discipline, message, locale: lang }) }); const payload = await response.json() as { reply?: string }; setReply(payload.reply ?? t.aiFallback); } catch { setReply(t.aiFallback); } finally { setLoading(false); } };
   return <div className="ai-overlay" role="dialog" aria-modal="true"><button className="ai-backdrop" type="button" onClick={close} aria-label={t.close}/><aside className="ai-panel"><header><span>✦</span><div><b>{t.aiTitle}</b><small>{t.connected}</small></div><button type="button" onClick={close}>×</button></header><div className="ai-disciplines">{["Construction AI", "Structural AI", "Water AI", "Roads AI", "Materials AI", "BOQ AI"].map((item) => <button className={discipline === item ? "active" : ""} type="button" key={item} onClick={() => setDiscipline(item)}>{item}</button>)}</div><div className="chat-area"><div className="assistant-message"><b>{discipline}</b><p>{t.aiIntro}</p></div>{message && reply && <><div className="user-message">{message}</div><div className="assistant-message"><b>{discipline}</b><p>{reply}</p><small>{t.disclaimer}</small></div></>}</div><div className="chat-input"><textarea value={message} onChange={(event) => { setMessage(event.target.value); setReply(""); }} placeholder={t.aiExample}/><button type="button" disabled={loading} onClick={send}>{loading ? "…" : "↑"}</button></div><footer><button type="button" onClick={() => { setMessage(""); setReply(""); }}>{t.clear}</button><small>{t.disclaimer}</small></footer></aside></div>;

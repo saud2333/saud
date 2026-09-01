@@ -9,18 +9,21 @@ test("implements the bilingual CivilKuwait product shell", async () => {
   const [layout, page, app, css] = await Promise.all([
     read("app/layout.tsx"),
     read("app/page.tsx"),
-    read("app/components/CivilApp.tsx"),
+    read("app/components/CivilAppV2.tsx"),
     read("app/globals.css"),
   ]);
   assert.match(layout, /CivilKuwait \| منصة الهندسة المدنية في الكويت/);
   assert.match(layout, /lang="ar" dir="rtl"/);
   assert.match(layout, /\/og\.png/);
   assert.match(page, /initialView="home"/);
-  assert.match(app, /كل ما تحتاجه للهندسة المدنية في الكويت/);
-  assert.match(app, /Everything you need for civil engineering in Kuwait/);
+  assert.match(app, /هندسة مستدامة للكويت/);
+  assert.match(app, /Sustainable engineering for Kuwait/);
   assert.match(app, /document\.documentElement\.dir/);
-  assert.match(app, /Data unavailable/);
-  assert.match(app, /\/api\/ai/);
+  assert.match(app, /السعر غير متاح/);
+  assert.match(css, /civilkuwait-sustainable-hero\.png/);
+  assert.match(css, /fictional-engineers-grid\.png/);
+  assert.match(app, /mobile-menu-v2/);
+  assert.match(app, /verifiedSuppliers/);
   assert.doesNotMatch(app, /الاستدامة بالبناء 47/);
   assert.match(css, /@media \(max-width: 760px\)/);
   assert.match(css, /prefers-reduced-motion/);
@@ -33,6 +36,7 @@ test("includes all primary pages and API surfaces", async () => {
     "app/infrastructure/page.tsx",
     "app/dashboard/page.tsx",
     "app/admin/page.tsx",
+    "app/guide/page.tsx",
     "app/api/materials/route.ts",
     "app/api/materials/[id]/route.ts",
     "app/api/engineers/route.ts",
@@ -64,6 +68,8 @@ test("includes database, storage, and production assets", async () => {
   assert.match(worker, /allowedApiMethods/);
   assert.match(worker, /Content-Security-Policy/);
   await access(new URL("public/og.png", root));
+  await access(new URL("public/civilkuwait-sustainable-hero.png", root));
+  await access(new URL("public/fictional-engineers-grid.png", root));
   await access(new URL("dist/server/index.js", root));
 });
 

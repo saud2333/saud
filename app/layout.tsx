@@ -3,7 +3,7 @@ import "./globals.css";
 
 const siteUrl = "https://civilkuwait.sites.openai.com";
 const title = "CivilKuwait | منصة الهندسة المدنية في الكويت";
-const description = "منصة عربية وإنجليزية للإنشاءات وهندسة المياه والطرق في الكويت، تشمل الأدلة والمواد والحاسبات وBOQ وCivil AI.";
+const description = "منصة الهندسة المدنية المستدامة في الكويت: دليل المهندسين والمقاولين، سوق مواد موثّق بالمصدر، BOQ، حاسبات، وخارطة بناء البيت.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     siteName: "CivilKuwait",
     title,
     description,
-    images: [{ url: "/og.png", width: 1536, height: 1024, alt: "CivilKuwait — Kuwait Civil Engineering Hub" }],
+    images: [{ url: "/og.png", width: 1731, height: 909, alt: "CivilKuwait — Sustainable Civil Engineering in Kuwait" }],
   },
   twitter: { card: "summary_large_image", title, description, images: ["/og.png"] },
 };
