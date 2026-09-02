@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
-const siteUrl = "https://civilkuwait.sites.openai.com";
+const siteUrl = "https://civilkuwait.hsah-otb.chatgpt.site";
 const title = "CivilKuwait | منصة الهندسة المدنية في الكويت";
 const description = "منصة الهندسة المدنية المستدامة في الكويت: دليل المهندسين والمقاولين، سوق مواد موثّق بالمصدر، BOQ، حاسبات، وخارطة بناء البيت.";
 
