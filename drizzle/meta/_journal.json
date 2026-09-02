@@ -8,6 +8,20 @@
       "when": 1788292241377,
       "tag": "0000_sticky_malice",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788296433933,
+      "tag": "0001_dark_sentinel",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788296588481,
+      "tag": "0002_fine_kylun",
+      "breakpoints": true
     }
   ]
 }

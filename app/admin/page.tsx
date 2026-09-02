@@ -1,3 +1,3 @@
-import CivilApp from "../components/CivilAppV2";
+import AdminPortal from "../components/AdminPortal";
 export const dynamic = "force-dynamic";
-export default function AdminPage() { return <CivilApp initialView="admin" />; }
+export default function AdminPage() { return <AdminPortal />; }

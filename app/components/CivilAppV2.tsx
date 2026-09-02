@@ -13,8 +13,6 @@ import {
   type LocaleText,
 } from "../data/catalog";
 import {
-  AdminDashboard,
-  AiPanel,
   ProjectDashboard,
   RoadsHub,
   WaterHub,
@@ -22,6 +20,10 @@ import {
   type Language,
   type View,
 } from "./CivilApp";
+import AiWorkspace from "./AiWorkspace";
+import ProfileWorkspace from "./ProfileWorkspace";
+import ThemeToggle from "./ThemeToggle";
+import { calculatorFunctions, estimateHouseRange } from "../lib/calculator-core.mjs";
 
 type T = typeof copy.ar | typeof copy.en;
 type BoqRow = { id: number; item: string; qty: string; unit: string; rate: string };
@@ -34,11 +36,13 @@ const viewPaths: Record<View, string> = {
   roads: "/infrastructure",
   dashboard: "/dashboard",
   guide: "/guide",
+  ai: "/ai",
+  profile: "/profile",
   admin: "/admin",
 };
 
 const navIcons: Record<View, string> = {
-  home: "⌂", construction: "▥", water: "≈", roads: "⌁", dashboard: "◫", guide: "?", admin: "⚙",
+  home: "⌂", construction: "▥", water: "≈", roads: "⌁", dashboard: "◫", guide: "?", ai: "✦", profile: "◎", admin: "⚙",
 };
 
 const local = (value: LocaleText, lang: Language) => value[lang];
@@ -63,7 +67,6 @@ export default function CivilAppV2({ initialView = "home" }: { initialView?: Vie
   const [lang, setLang] = useState<Language>("ar");
   const [view, setView] = useState<View>(initialView);
   const [query, setQuery] = useState("");
-  const [aiOpen, setAiOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const t = copy[lang];
 
@@ -97,16 +100,19 @@ export default function CivilAppV2({ initialView = "home" }: { initialView?: Vie
     else window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const primaryViews: View[] = ["home", "construction", "water", "roads", "dashboard", "guide"];
+  const primaryViews: View[] = ["home", "construction", "water", "roads", "ai", "guide"];
+  const navLabels = lang === "ar" ? ["الرئيسية", "الإنشاءات", "المياه", "الطرق", "Civil AI", "دليل الاستخدام"] : ["Home", "Construction", "Water", "Roads", "Civil AI", "How to use"];
   return <main>
     <header className="app-header v2-header">
       <button className="brand" type="button" onClick={() => navigate("home")}><b>CK</b><span>CivilKuwait<small>{lang === "ar" ? "بناء أذكى · أثر أقل" : "Smarter building · lower impact"}</small></span></button>
       <nav aria-label={lang === "ar" ? "التنقل الرئيسي" : "Main navigation"}>
-        {primaryViews.map((item, index) => <button className={view === item ? "active" : ""} key={item} type="button" onClick={() => navigate(item)}><i>{navIcons[item]}</i>{t.nav[index]}</button>)}
+        {primaryViews.map((item, index) => <button className={view === item ? "active" : ""} key={item} type="button" onClick={() => navigate(item)}><i>{navIcons[item]}</i>{navLabels[index]}</button>)}
       </nav>
       <div className="header-actions">
         <button className="search-trigger" type="button" aria-label={t.search} onClick={() => document.getElementById("global-search")?.focus()}>⌕</button>
+        <ThemeToggle label={lang === "ar" ? "تبديل المظهر" : "Toggle theme"} />
         <button className="language" type="button" onClick={() => setLang(lang === "ar" ? "en" : "ar")}>{lang === "ar" ? "EN" : "ع"}</button>
+        <button className="profile-trigger" type="button" onClick={() => navigate("profile")} aria-label={lang === "ar" ? "الملف الشخصي" : "Profile"}>◎</button>
         <button className="start-project" type="button" onClick={() => navigate("construction", "house")}>{lang === "ar" ? "ابدأ مشروعك" : "Start project"}</button>
         <button className="menu-toggle" type="button" aria-expanded={mobileOpen} onClick={() => setMobileOpen((open) => !open)}>☰</button>
       </div>
@@ -122,19 +128,19 @@ export default function CivilAppV2({ initialView = "home" }: { initialView?: Vie
       <button type="button" onClick={() => navigate("guide")}>? {lang === "ar" ? "كيف أستخدم الموقع؟" : "How it works"}</button>
     </div>
 
-    {mobileOpen && <div className="mobile-menu-v2"><button className="mobile-backdrop" type="button" onClick={() => setMobileOpen(false)} aria-label="Close" /><aside><header><b>CivilKuwait</b><button type="button" onClick={() => setMobileOpen(false)}>×</button></header>{primaryViews.map((item, index) => <button className={view === item ? "active" : ""} key={item} type="button" onClick={() => navigate(item)}><i>{navIcons[item]}</i><span>{t.nav[index]}</span><b>←</b></button>)}<div><button type="button" onClick={() => navigate("construction", "materials")}>{lang === "ar" ? "سوق المواد" : "Material market"}</button><button type="button" onClick={() => setAiOpen(true)}>Civil AI ✦</button></div></aside></div>}
+    {mobileOpen && <div className="mobile-menu-v2"><button className="mobile-backdrop" type="button" onClick={() => setMobileOpen(false)} aria-label="Close" /><aside><header><b>CivilKuwait</b><button type="button" onClick={() => setMobileOpen(false)}>×</button></header>{primaryViews.map((item, index) => <button className={view === item ? "active" : ""} key={item} type="button" onClick={() => navigate(item)}><i>{navIcons[item]}</i><span>{navLabels[index]}</span><b>←</b></button>)}<div><button type="button" onClick={() => navigate("profile")}>{lang === "ar" ? "ملفي" : "My profile"}</button><button type="button" onClick={() => navigate("construction", "materials")}>{lang === "ar" ? "سوق المواد" : "Material market"}</button></div></aside></div>}
 
-    {view === "home" && <HomeV2 lang={lang} t={t} query={query} setQuery={setQuery} navigate={navigate} openAi={() => setAiOpen(true)} />}
+    {view === "home" && <HomeV2 lang={lang} t={t} query={query} setQuery={setQuery} navigate={navigate} openAi={() => navigate("ai")} />}
     {view === "construction" && <ConstructionHubV2 lang={lang} t={t} />}
     {view === "water" && <WaterHub lang={lang} t={t} />}
     {view === "roads" && <RoadsHub lang={lang} t={t} />}
     {view === "dashboard" && <ProjectDashboard lang={lang} t={t} navigate={navigate} />}
     {view === "guide" && <GuidePage lang={lang} navigate={navigate} />}
-    {view === "admin" && <AdminDashboard t={t} />}
+    {view === "ai" && <AiWorkspace lang={lang} />}
+    {view === "profile" && <ProfileWorkspace lang={lang} />}
 
-    <button className="floating-ai" type="button" onClick={() => setAiOpen(true)}><span>✦</span><b>Civil AI</b><small>{lang === "ar" ? "اسأل الآن" : "Ask now"}</small></button>
-    {aiOpen && <AiPanel lang={lang} t={t} close={() => setAiOpen(false)} />}
-    <footer><span>CivilKuwait · {lang === "ar" ? "قرارات أوضح، مواد أفضل، مبانٍ أكثر استدامة" : "Clearer decisions, better materials, more sustainable buildings"}</span><button type="button" onClick={() => navigate("guide")}>{lang === "ar" ? "دليل الموقع" : "Site guide"}</button><button type="button" onClick={() => navigate("admin")}>{t.admin}</button></footer>
+    {view !== "ai" && <button className="floating-ai" type="button" onClick={() => navigate("ai")}><span>✦</span><b>Civil AI</b><small>{lang === "ar" ? "اسأل الآن" : "Ask now"}</small></button>}
+    <footer><span>CivilKuwait · {lang === "ar" ? "قرارات أوضح، مواد أفضل، مبانٍ أكثر استدامة" : "Clearer decisions, better materials, more sustainable buildings"}</span><button type="button" onClick={() => navigate("guide")}>{lang === "ar" ? "دليل الموقع" : "Site guide"}</button><button type="button" onClick={() => navigate("profile")}>{lang === "ar" ? "حسابي" : "My account"}</button></footer>
   </main>;
 }
 
@@ -291,20 +297,20 @@ function HouseAssistant({ lang, t }: { lang: Language; t: T }) {
   const [result, setResult] = useState<[number, number] | null>(null);
 
   return <section className="workspace-section house-assistant-v2" id="house"><div className="workspace-title"><span>03</span><div><h2>{lang === "ar" ? "ابني بيتك — مدخلات واضحة ونتيجة صادقة" : "Build my house — clear inputs, honest output"}</h2><p>{lang === "ar" ? "لا نضع سعر متر مخترعًا. أدخل الحدين من عرض موثوق أو مرجعك، وسنحسب النطاق ونحفظ افتراضاتك." : "We do not invent a rate per square metre. Enter a verified low/high rate and we calculate the range with your assumptions."}</p></div></div>
-    <div className="house-grid"><form onSubmit={(event) => { event.preventDefault(); setResult(numeric(lowRate) > 0 && numeric(highRate) >= numeric(lowRate) ? [numeric(builtArea) * numeric(lowRate), numeric(builtArea) * numeric(highRate)] : null); }}><div className="form-grid three"><Field label={lang === "ar" ? "مساحة الأرض (م²)" : "Land area (m²)"} value={landArea} onChange={setLandArea}/><Field label={lang === "ar" ? "إجمالي مساحة البناء (م²)" : "Total built area (m²)"} value={builtArea} onChange={setBuiltArea}/><Field label={lang === "ar" ? "عدد الأدوار" : "Floors"} value={floors} onChange={setFloors}/></div><div className="form-grid three"><label className="field"><span>{lang === "ar" ? "المنطقة" : "Area"}</span><select value={region} onChange={(event) => setRegion(event.target.value)}>{["العاصمة","حولي","الفروانية","الجهراء","الأحمدي","مبارك الكبير"].map((item) => <option key={item}>{item}</option>)}</select></label><label className="field"><span>{lang === "ar" ? "مستوى التشطيب" : "Finish level"}</span><select value={finish} onChange={(event) => setFinish(event.target.value)}><option value="basic">{lang === "ar" ? "اقتصادي" : "Basic"}</option><option value="medium">{lang === "ar" ? "متوسط" : "Medium"}</option><option value="premium">{lang === "ar" ? "مرتفع" : "Premium"}</option></select></label><div className="toggle-pair"><label><input type="checkbox" checked={basement} onChange={(event) => setBasement(event.target.checked)}/><span>{lang === "ar" ? "سرداب" : "Basement"}</span></label><label><input type="checkbox" checked={elevator} onChange={(event) => setElevator(event.target.checked)}/><span>{lang === "ar" ? "مصعد" : "Lift"}</span></label></div></div><div className="rate-box"><Field label={lang === "ar" ? "الحد الأدنى KWD/م² — من مصدرك" : "Low KWD/m² — your source"} value={lowRate} onChange={setLowRate}/><Field label={lang === "ar" ? "الحد الأعلى KWD/م² — من مصدرك" : "High KWD/m² — your source"} value={highRate} onChange={setHighRate}/><button className="button primary green" type="submit">{t.calculate} ←</button></div></form>
+    <div className="house-grid"><form onSubmit={(event) => { event.preventDefault(); setResult(estimateHouseRange(numeric(builtArea), numeric(lowRate), numeric(highRate)) as [number, number] | null); }}><div className="form-grid three"><Field label={lang === "ar" ? "مساحة الأرض (م²)" : "Land area (m²)"} value={landArea} onChange={setLandArea}/><Field label={lang === "ar" ? "إجمالي مساحة البناء (م²)" : "Total built area (m²)"} value={builtArea} onChange={setBuiltArea}/><Field label={lang === "ar" ? "عدد الأدوار" : "Floors"} value={floors} onChange={setFloors}/></div><div className="form-grid three"><label className="field"><span>{lang === "ar" ? "المنطقة" : "Area"}</span><select value={region} onChange={(event) => setRegion(event.target.value)}>{["العاصمة","حولي","الفروانية","الجهراء","الأحمدي","مبارك الكبير"].map((item) => <option key={item}>{item}</option>)}</select></label><label className="field"><span>{lang === "ar" ? "مستوى التشطيب" : "Finish level"}</span><select value={finish} onChange={(event) => setFinish(event.target.value)}><option value="basic">{lang === "ar" ? "اقتصادي" : "Basic"}</option><option value="medium">{lang === "ar" ? "متوسط" : "Medium"}</option><option value="premium">{lang === "ar" ? "مرتفع" : "Premium"}</option></select></label><div className="toggle-pair"><label><input type="checkbox" checked={basement} onChange={(event) => setBasement(event.target.checked)}/><span>{lang === "ar" ? "سرداب" : "Basement"}</span></label><label><input type="checkbox" checked={elevator} onChange={(event) => setElevator(event.target.checked)}/><span>{lang === "ar" ? "مصعد" : "Lift"}</span></label></div></div><div className="rate-box"><Field label={lang === "ar" ? "الحد الأدنى KWD/م² — من مصدرك" : "Low KWD/m² — your source"} value={lowRate} onChange={setLowRate}/><Field label={lang === "ar" ? "الحد الأعلى KWD/م² — من مصدرك" : "High KWD/m² — your source"} value={highRate} onChange={setHighRate}/><button className="button primary green" type="submit">{t.calculate} ←</button></div></form>
       <aside><small>{lang === "ar" ? "النطاق التقديري" : "Estimated range"}</small>{result ? <b>{number(result[0], lang, 0)} – {number(result[1], lang, 0)} KWD</b> : <b>— KWD</b>}<p>{result ? `${landArea} m² land · ${builtArea} m² built · ${floors} floors · ${region} · ${finish} · basement: ${basement ? "yes" : "no"} · lift: ${elevator ? "yes" : "no"}` : t.needRates}</p><div className="green-checks"><span>✓ {lang === "ar" ? "أضف عزلًا حراريًا مناسبًا لمناخ الكويت" : "Plan climate-appropriate insulation"}</span><span>✓ {lang === "ar" ? "جهّز السطح للطاقة الشمسية" : "Make the roof solar-ready"}</span><span>✓ {lang === "ar" ? "اختر خلاطات وأدوات صحية منخفضة التدفق" : "Select low-flow fixtures"}</span><span>✓ {lang === "ar" ? "قلّل هدر المواد عبر BOQ مضبوط" : "Reduce waste with a controlled BOQ"}</span></div><strong>{t.disclaimer}</strong></aside></div>
   </section>;
 }
 
 const calculatorDefinitions = {
-  concrete: { ar: "حجم الخرسانة", en: "Concrete volume", labels: [["الطول (م)","Length (m)"],["العرض (م)","Width (m)"],["السماكة (م)","Depth (m)"],["العدد","Count"]], formula: "V = L × W × D × N", unit: "m³", compute: (a:number,b:number,c:number,d:number) => a*b*c*(d || 1) },
-  slab: { ar: "حجم البلاطة", en: "Slab volume", labels: [["الطول (م)","Length (m)"],["العرض (م)","Width (m)"],["السماكة (م)","Thickness (m)"],["عدد البلاطات","Slab count"]], formula: "V = L × W × t × N", unit: "m³", compute: (a:number,b:number,c:number,d:number) => a*b*c*(d || 1) },
-  excavation: { ar: "حجم الحفر", en: "Excavation volume", labels: [["الطول (م)","Length (m)"],["العرض (م)","Width (m)"],["العمق (م)","Depth (m)"],["العدد","Count"]], formula: "V = L × W × D × N", unit: "m³", compute: (a:number,b:number,c:number,d:number) => a*b*c*(d || 1) },
-  backfill: { ar: "حجم الدفان", en: "Backfill volume", labels: [["حجم الحفر (م³)","Excavation (m³)"],["حجم المنشأ (م³)","Structure (m³)"],["معامل الدمك","Compaction factor"],["—","—"]], formula: "V = (Excavation − Structure) × factor", unit: "m³", compute: (a:number,b:number,c:number) => Math.max(0,a-b)*(c || 1) },
-  block: { ar: "عدد الطابوق", en: "Block quantity", labels: [["مساحة الجدار (م²)","Wall area (m²)"],["طول الطابوقة (سم)","Block length (cm)"],["ارتفاع الطابوقة (سم)","Block height (cm)"],["هدر (%)","Waste (%)"]], formula: "N = A ÷ (L × H) × (1+w)", unit: "units", compute: (a:number,b:number,c:number,d:number) => b*c ? a/((b/100)*(c/100))*(1+d/100) : 0 },
-  rebar: { ar: "وزن حديد التسليح", en: "Rebar weight", labels: [["القطر (مم)","Diameter (mm)"],["طول السيخ (م)","Bar length (m)"],["العدد","Count"],["هدر (%)","Waste (%)"]], formula: "W = d²/162 × L × N × (1+w)", unit: "kg", compute: (a:number,b:number,c:number,d:number) => (a*a/162)*b*c*(1+d/100) },
-  formwork: { ar: "مساحة الشدة", en: "Formwork area", labels: [["الطول (م)","Length (m)"],["العرض (م)","Width (m)"],["الارتفاع (م)","Height (m)"],["العدد","Count"]], formula: "A = 2(L+W)H × N", unit: "m²", compute: (a:number,b:number,c:number,d:number) => 2*(a+b)*c*(d || 1) },
-  steel: { ar: "وزن الصاج", en: "Steel plate weight", labels: [["الطول (م)","Length (m)"],["العرض (م)","Width (m)"],["السماكة (مم)","Thickness (mm)"],["العدد","Count"]], formula: "W = L × W × t × 7850 × N", unit: "kg", compute: (a:number,b:number,c:number,d:number) => a*b*(c/1000)*7850*(d || 1) },
+  concrete: { ar: "حجم الخرسانة", en: "Concrete volume", labels: [["الطول (م)","Length (m)"],["العرض (م)","Width (m)"],["السماكة (م)","Depth (m)"],["العدد","Count"]], formula: "V = L × W × D × N", unit: "m³", compute: calculatorFunctions.concrete },
+  slab: { ar: "حجم البلاطة", en: "Slab volume", labels: [["الطول (م)","Length (m)"],["العرض (م)","Width (m)"],["السماكة (م)","Thickness (m)"],["عدد البلاطات","Slab count"]], formula: "V = L × W × t × N", unit: "m³", compute: calculatorFunctions.slab },
+  excavation: { ar: "حجم الحفر", en: "Excavation volume", labels: [["الطول (م)","Length (m)"],["العرض (م)","Width (m)"],["العمق (م)","Depth (m)"],["العدد","Count"]], formula: "V = L × W × D × N", unit: "m³", compute: calculatorFunctions.excavation },
+  backfill: { ar: "حجم الدفان", en: "Backfill volume", labels: [["حجم الحفر (م³)","Excavation (m³)"],["حجم المنشأ (م³)","Structure (m³)"],["معامل الدمك","Compaction factor"],["—","—"]], formula: "V = (Excavation − Structure) × factor", unit: "m³", compute: calculatorFunctions.backfill },
+  block: { ar: "عدد الطابوق", en: "Block quantity", labels: [["مساحة الجدار (م²)","Wall area (m²)"],["طول الطابوقة (سم)","Block length (cm)"],["ارتفاع الطابوقة (سم)","Block height (cm)"],["هدر (%)","Waste (%)"]], formula: "N = A ÷ (L × H) × (1+w)", unit: "units", compute: calculatorFunctions.block },
+  rebar: { ar: "وزن حديد التسليح", en: "Rebar weight", labels: [["القطر (مم)","Diameter (mm)"],["طول السيخ (م)","Bar length (m)"],["العدد","Count"],["هدر (%)","Waste (%)"]], formula: "W = d²/162 × L × N × (1+w)", unit: "kg", compute: calculatorFunctions.rebar },
+  formwork: { ar: "مساحة الشدة", en: "Formwork area", labels: [["الطول (م)","Length (m)"],["العرض (م)","Width (m)"],["الارتفاع (م)","Height (m)"],["العدد","Count"]], formula: "A = 2(L+W)H × N", unit: "m²", compute: calculatorFunctions.formwork },
+  steel: { ar: "وزن الصاج", en: "Steel plate weight", labels: [["الطول (م)","Length (m)"],["العرض (م)","Width (m)"],["السماكة (مم)","Thickness (mm)"],["العدد","Count"]], formula: "W = L × W × t × 7850 × N", unit: "kg", compute: calculatorFunctions.steel },
 };
 
 function CalculatorStudio({ lang }: { lang: Language }) {

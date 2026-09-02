@@ -36,5 +36,6 @@ const structuredData = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="ar" dir="rtl"><head><meta name="theme-color" content="#071d2b"/><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}/></head><body>{children}</body></html>;
+  const themeScript = `(function(){try{var p=localStorage.getItem('civilkuwait-theme')||'system';var d=p==='dark'||(p==='system'&&matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';document.documentElement.style.colorScheme=d?'dark':'light'}catch(e){}})()`;
+  return <html lang="ar" dir="rtl" suppressHydrationWarning><head><meta name="theme-color" content="#071d2b"/><script dangerouslySetInnerHTML={{ __html: themeScript }}/><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}/></head><body>{children}</body></html>;
 }

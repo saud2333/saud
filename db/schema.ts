@@ -8,12 +8,22 @@ export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email"),
   displayName: text("display_name"),
+  jobTitle: text("job_title"),
+  company: text("company"),
+  phone: text("phone"),
+  governorate: text("governorate"),
+  bio: text("bio"),
   role: text("role", { enum: ["admin", "engineer", "supplier", "homeowner", "contractor"] }).notNull().default("homeowner"),
   status: text("status", { enum: ["active", "suspended", "pending"] }).notNull().default("active"),
   locale: text("locale", { enum: ["ar", "en"] }).notNull().default("ar"),
+  theme: text("theme", { enum: ["light", "dark", "system"] }).notNull().default("system"),
   createdAt,
   updatedAt,
-}, (table) => [uniqueIndex("idx_users_email").on(table.email), index("idx_users_role_status").on(table.role, table.status)]);
+}, (table) => [
+  uniqueIndex("idx_users_email").on(table.email),
+  uniqueIndex("idx_users_single_admin").on(table.role).where(sql`${table.role} = 'admin'`),
+  index("idx_users_role_status").on(table.role, table.status),
+]);
 
 export const engineers = sqliteTable("engineers", {
   id: integer("id").primaryKey({ autoIncrement: true }),

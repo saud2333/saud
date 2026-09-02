@@ -1,4 +1,6 @@
 import { getDb } from "../../db";
+import { env } from "cloudflare:workers";
+import { eq } from "drizzle-orm";
 import { users } from "../../db/schema";
 
 export type RequestUser = { id: string; email: string | null; name: string | null };
@@ -19,6 +21,40 @@ export async function ensureUser(user: RequestUser) {
   const db = getDb();
   await db.insert(users).values({ id: user.id, email: user.email, displayName: user.name }).onConflictDoUpdate({ target: users.id, set: { email: user.email, displayName: user.name } });
   return db;
+}
+
+export async function getStoredUser(user: RequestUser) {
+  const db = await ensureUser(user);
+  const [stored] = await db.select().from(users).where(eq(users.id, user.id)).limit(1);
+  return { db, stored };
+}
+
+export async function requireAdminUser(request: Request) {
+  const user = getRequestUser(request);
+  if (!user) return { error: Response.json({ error: "Authentication required", code: "unauthorized" }, { status: 401 }) } as const;
+  const { db, stored } = await getStoredUser(user);
+  if (!stored || stored.role !== "admin" || stored.status !== "active") {
+    return { error: Response.json({ error: "Not found", code: "not_found" }, { status: 404 }) } as const;
+  }
+  return { user, stored, db } as const;
+}
+
+export function getAdminSetupCode() {
+  const value = env.ADMIN_SETUP_CODE;
+  return typeof value === "string" && value.length >= 16 ? value : null;
+}
+
+export async function constantTimeMatch(left: string, right: string) {
+  const encoder = new TextEncoder();
+  const [leftHash, rightHash] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(left)),
+    crypto.subtle.digest("SHA-256", encoder.encode(right)),
+  ]);
+  const a = new Uint8Array(leftHash);
+  const b = new Uint8Array(rightHash);
+  let mismatch = a.length ^ b.length;
+  for (let index = 0; index < Math.min(a.length, b.length); index += 1) mismatch |= a[index] ^ b[index];
+  return mismatch === 0;
 }
 
 export function apiError(error: unknown, fallback = "Service temporarily unavailable") {
