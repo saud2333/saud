@@ -13,5 +13,11 @@ declare module "cloudflare:workers" {
   export type R2Bucket = {
     put(key: string, value: ArrayBuffer | ReadableStream, options?: { httpMetadata?: { contentType?: string }; customMetadata?: Record<string, string> }): Promise<unknown>;
   };
-  export const env: { DB?: D1Database; FILES?: R2Bucket; [key: string]: unknown };
+  export const env: {
+    DB?: D1Database;
+    FILES?: R2Bucket;
+    OPENAI_API_KEY?: string;
+    OPENAI_MODEL?: string;
+    [key: string]: unknown;
+  };
 }

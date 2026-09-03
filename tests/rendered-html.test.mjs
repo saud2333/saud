@@ -93,7 +93,9 @@ test("keeps AI and live-data safety boundaries explicit", async () => {
     read("ARCHITECTURE.md"),
   ]);
   assert.match(ai, /safe_local_source_router/);
-  assert.match(ai, /external_ai_connected: false/);
+  assert.match(ai, /requestOpenAI/);
+  assert.match(ai, /external_ai_connected: externalAiConnected/);
+  assert.match(ai, /provider_configured: Boolean\(apiKey\)/);
   assert.match(ai, /ksm\.pai\.gov\.kw/);
   assert.match(catalog, /price: null/);
   assert.match(catalog, /demo: true/);

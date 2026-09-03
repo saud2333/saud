@@ -15,6 +15,8 @@ interface Env {
   };
   DB?: unknown;
   FILES?: unknown;
+  OPENAI_API_KEY?: string;
+  OPENAI_MODEL?: string;
 }
 
 interface ExecutionContext {

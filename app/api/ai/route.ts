@@ -1,5 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
+import { env } from "cloudflare:workers";
 import { aiConversations } from "../../../db/schema";
+import { DEFAULT_AI_MODEL, buildInstructions, requestOpenAI, sanitizeHistory } from "../../lib/ai-core.mjs";
 import { apiError, ensureUser, getRequestUser } from "../../lib/server";
 
 type Locale = "ar" | "en";
@@ -62,13 +64,30 @@ const parseTranscript = (value: string): Message[] => {
   try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
 };
 
+const runtimeString = (key: "OPENAI_API_KEY" | "OPENAI_MODEL") => {
+  const value = env[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+};
+
+const json = (body: unknown, status = 200) => Response.json(body, {
+  status,
+  headers: { "Cache-Control": "no-store" },
+});
+
+async function safetyIdentifier(userId: string | undefined) {
+  if (!userId) return undefined;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(userId));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export async function GET(request: Request) {
   const user = getRequestUser(request);
-  if (!user) return Response.json({ authenticated: false, data: [] }, { status: 401 });
+  const providerReady = Boolean(runtimeString("OPENAI_API_KEY"));
+  if (!user) return json({ authenticated: false, data: [], provider_ready: providerReady });
   try {
     const db = await ensureUser(user);
     const rows = await db.select().from(aiConversations).where(eq(aiConversations.ownerUserId, user.id)).orderBy(desc(aiConversations.updatedAt)).limit(24);
-    return Response.json({ authenticated: true, data: rows.map((row) => ({ ...row, transcript: parseTranscript(row.transcriptJson) })) });
+    return json({ authenticated: true, provider_ready: providerReady, data: rows.map((row) => ({ ...row, transcript: parseTranscript(row.transcriptJson) })) });
   } catch (error) { return apiError(error); }
 }
 
@@ -76,13 +95,46 @@ export async function POST(request: Request) {
   const user = getRequestUser(request);
   const payload = await request.json().catch(() => null) as { discipline?: string; message?: string; locale?: Locale; conversationId?: number; transcript?: Message[] } | null;
   const message = payload?.message?.trim() ?? "";
-  if (!message || message.length > 5000) return Response.json({ error: "A message between 1 and 5000 characters is required" }, { status: 400 });
+  if (!message || message.length > 5000) return json({ error: "A message between 1 and 5000 characters is required" }, 400);
   const locale: Locale = payload?.locale === "en" ? "en" : "ar";
   const disciplineName = disciplinePrompts[payload?.discipline ?? "Construction AI"] ? payload?.discipline ?? "Construction AI" : "Construction AI";
   const discipline = disciplinePrompts[disciplineName];
-  const reply = discipline[locale];
   const now = new Date().toISOString();
-  const safeHistory = Array.isArray(payload?.transcript) ? payload.transcript.slice(-18).filter((item) => item && ["user", "assistant"].includes(item.role) && typeof item.content === "string").map((item) => ({ role: item.role, content: item.content.slice(0, 5000), createdAt: item.createdAt || now })) : [];
+  const safeHistory = sanitizeHistory(payload?.transcript).map((item) => ({ ...item, createdAt: item.createdAt || now }));
+  const sourceList = sources[discipline.sourceKey];
+  const apiKey = runtimeString("OPENAI_API_KEY");
+  const configuredModel = runtimeString("OPENAI_MODEL") ?? DEFAULT_AI_MODEL;
+  let reply = discipline[locale];
+  let responseModel = "safe-local-source-router";
+  let mode = "safe_local_source_router";
+  let externalAiConnected = false;
+
+  if (apiKey) {
+    try {
+      const generated = await requestOpenAI({
+        apiKey,
+        model: configuredModel,
+        instructions: buildInstructions({
+          locale,
+          disciplineName,
+          disciplineGuidance: discipline[locale],
+          sourceList,
+        }),
+        history: safeHistory,
+        message,
+        safetyIdentifier: await safetyIdentifier(user?.id),
+      });
+      if (generated) {
+        reply = generated.reply;
+        responseModel = generated.model;
+        mode = "openai_responses";
+        externalAiConnected = true;
+      }
+    } catch (error) {
+      console.error("Civil AI provider request failed", error instanceof Error ? error.message : "Unknown provider error");
+    }
+  }
+
   const transcript: Message[] = [...safeHistory, { role: "user", content: message, createdAt: now }, { role: "assistant", content: reply, createdAt: now }];
   let conversationId: number | null = null;
   let saved = false;
@@ -91,23 +143,24 @@ export async function POST(request: Request) {
     try {
       const db = await ensureUser(user);
       if (payload?.conversationId) {
-        const [updated] = await db.update(aiConversations).set({ transcriptJson: JSON.stringify(transcript), discipline: disciplineName, updatedAt: now }).where(and(eq(aiConversations.id, payload.conversationId), eq(aiConversations.ownerUserId, user.id))).returning({ id: aiConversations.id });
+        const [updated] = await db.update(aiConversations).set({ transcriptJson: JSON.stringify(transcript), discipline: disciplineName, model: responseModel, updatedAt: now }).where(and(eq(aiConversations.id, payload.conversationId), eq(aiConversations.ownerUserId, user.id))).returning({ id: aiConversations.id });
         conversationId = updated?.id ?? null;
       }
       if (!conversationId) {
-        const [created] = await db.insert(aiConversations).values({ ownerUserId: user.id, discipline: disciplineName, transcriptJson: JSON.stringify(transcript), safetyFlagsJson: "[]", model: "safe-local-source-router" }).returning({ id: aiConversations.id });
+        const [created] = await db.insert(aiConversations).values({ ownerUserId: user.id, discipline: disciplineName, transcriptJson: JSON.stringify(transcript), safetyFlagsJson: "[]", model: responseModel }).returning({ id: aiConversations.id });
         conversationId = created.id;
       }
       saved = true;
     } catch (error) { return apiError(error, "Conversation could not be saved"); }
   }
 
-  return Response.json({
+  return json({
     reply,
-    sources: sources[discipline.sourceKey],
-    mode: "safe_local_source_router",
-    needs_clarification: true,
-    external_ai_connected: false,
+    sources: sourceList,
+    mode,
+    model: responseModel,
+    external_ai_connected: externalAiConnected,
+    provider_configured: Boolean(apiKey),
     authenticated: Boolean(user),
     saved,
     conversation_id: conversationId,

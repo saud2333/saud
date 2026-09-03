@@ -13,7 +13,7 @@ Browser (Arabic RTL / English LTR)
   └─ Authenticated write APIs
        ├─ D1: structured product records and authorization ownership
        ├─ R2: PDFs, spreadsheets, photos, and generated reports
-       └─ AI adapter: safe local fallback → external provider later
+       └─ AI adapter: OpenAI Responses API → safe local fallback
 ```
 
 - الواجهة: Next.js App Router + React + TypeScript، مبنية لخادم Cloudflare Worker عبر Vinext.
@@ -21,6 +21,12 @@ Browser (Arabic RTL / English LTR)
 - الملفات: Cloudflare R2؛ تخزن D1 بيانات الملكية والاسم والنوع والحالة فقط.
 - الهوية: رؤوس هوية المنصة `oai-authenticated-user-*`. جميع قرارات الملكية والأدوار تُطبق في الخادم، لا في الواجهة.
 - النشر: OpenAI Sites مع ربط منطقي `DB` و`FILES`.
+
+### نشر GitHub Pages
+
+نسخة GitHub المستقلة تُبنى من `github/main.tsx` إلى `docs/` وتعمل تحت `/saud/` بمسارات Hash. تستخدم Supabase Auth وPostgres وStorage بدل وظائف الخادم غير المتاحة في GitHub Pages. مخطط Supabase موجود في `supabase/migrations/0001_civilkuwait_platform.sql`، ويغطي الملفات الشخصية والمشاريع وBOQ وقوائم الفحص والمحادثات والمستندات.
+
+التفويض ليس إخفاءً بصريًا: كل جدول مكشوف يفعّل RLS، وتُسحب امتيازات `anon`، ويُربط الوصول بـ `auth.uid()`. صلاحية الإدارة محمية بدالة `security definer` ورمز تأسيس محفوظ كبصمة SHA-256، مع فهرس جزئي يمنع وجود أكثر من حساب بدور `admin`.
 
 ## الصفحات
 
@@ -43,7 +49,7 @@ Browser (Arabic RTL / English LTR)
 - `GET|POST /api/road-reports` — يتطلب هوية
 - `POST /api/documents/upload` — R2 + سجل D1، حد 10MB وقائمة أنواع مسموحة
 - `POST /api/boq/analyze` — تحليل CSV شفاف دون إضافة أسعار سوقية
-- `POST /api/ai` — محول آمن يطلب المدخلات الناقصة؛ جاهز لاستبداله بموفر خارجي
+- `POST /api/ai` — محول آمن يستخدم OpenAI Responses API عند ضبط المفتاح، ويعود تلقائيًا إلى الإرشاد المحلي عند تعذر الموفر
 - `GET /api/me` — حالة الهوية الحالية
 
 كل استجابة بيانات متغيرة تميز بين `source` و`last_updated` و`confidence`. عندما لا يوجد مصدر موثوق تكون القيمة `null` وتعرض الواجهة `Data unavailable`.
@@ -75,7 +81,7 @@ material_id + normalized_specification + quality_grade + unit + certification re
 5. إرفاق الافتراضات والتحذير، ومنع تقديم اعتماد هندسي نهائي.
 6. تسجيل التدقيق بعد موافقة الخصوصية، مع حجب المعلومات الحساسة.
 
-لا يوجد مفتاح ذكاء اصطناعي داخل الكود. نقطة `/api/ai` تعمل الآن بوضع `safe_local_fallback` وتصرح بأن الموفر الخارجي غير متصل.
+لا يوجد مفتاح ذكاء اصطناعي داخل الكود. تقرأ نقطة `/api/ai` المتغير السري `OPENAI_API_KEY` واسم النموذج الاختياري `OPENAI_MODEL` من بيئة التشغيل، وترسل آخر سياق آمن عبر Responses API. عند غياب المفتاح أو تعذر الاتصال تستمر المحادثة في وضع `safe_local_source_router` بدل الفشل الكامل.
 
 ## مصادر البيانات المقترحة
 

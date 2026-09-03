@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import type { Language } from "./CivilApp";
 import { applyTheme, type ThemePreference } from "./ThemeToggle";
+import { isGitHubPagesRuntime } from "../lib/runtime";
+import SupabaseProfileWorkspace from "./SupabaseProfileWorkspace";
 
 type Profile = {
   id: string; email: string | null; displayName: string | null; jobTitle: string | null; company: string | null;
@@ -12,6 +14,10 @@ type Profile = {
 const emptyProfile: Profile = { id: "", email: null, displayName: "", jobTitle: "", company: "", phone: "", governorate: "", bio: "", role: "homeowner", locale: "ar", theme: "system" };
 
 export default function ProfileWorkspace({ lang }: { lang: Language }) {
+  return isGitHubPagesRuntime() ? <SupabaseProfileWorkspace lang={lang} /> : <SitesProfileWorkspace lang={lang} />;
+}
+
+function SitesProfileWorkspace({ lang }: { lang: Language }) {
   const [profile, setProfile] = useState<Profile>(emptyProfile);
   const [state, setState] = useState<"loading" | "anonymous" | "ready" | "saving" | "saved" | "error">("loading");
   useEffect(() => {

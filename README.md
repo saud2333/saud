@@ -9,11 +9,24 @@ npm install
 npm run dev
 ```
 
+## نسخة GitHub Pages + Supabase
+
+```bash
+npm run build:github
+```
+
+- تُبنى الواجهة الثابتة داخل `docs/` لأن GitHub Pages مضبوط على `main/docs`.
+- يستخدم التطبيق مسارات Hash تحت `/saud/` حتى تعمل جميع الصفحات مع الاستضافة الثابتة.
+- المصادقة والحفظ والمشاريع وBOQ وقوائم الفحص ومحادثات Civil AI تستخدم Supabase.
+- مخطط الإنتاج وسياسات RLS موجودة في `supabase/migrations/0001_civilkuwait_platform.sql` ويجب تشغيلها مرة واحدة من SQL Editor.
+- لا يحتاج المتصفح إلا مفتاح Supabase من نوع `publishable`. لا يجوز وضع `service_role` أو كلمة مرور قاعدة البيانات في المستودع أو الواجهة.
+
 ## الفحص وقاعدة البيانات
 
 ```bash
 npm run typecheck
 npm run build
+npm run build:github
 npm run db:generate
 ```
 

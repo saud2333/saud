@@ -23,7 +23,12 @@ import {
 import AiWorkspace from "./AiWorkspace";
 import ProfileWorkspace from "./ProfileWorkspace";
 import ThemeToggle from "./ThemeToggle";
+import { SupabaseAdminAccess, SupabaseAdminPortal } from "./SupabaseAdmin";
+import SupabaseProjectDashboard from "./SupabaseProjectDashboard";
 import { calculatorFunctions, estimateHouseRange } from "../lib/calculator-core.mjs";
+import { isGitHubPagesRuntime, viewFromLocation } from "../lib/runtime";
+import { navigateToPath } from "../lib/runtime";
+import { getSupabaseClient } from "../lib/supabase";
 
 type T = typeof copy.ar | typeof copy.en;
 type BoqRow = { id: number; item: string; qty: string; unit: string; rate: string };
@@ -39,10 +44,11 @@ const viewPaths: Record<View, string> = {
   ai: "/ai",
   profile: "/profile",
   admin: "/admin",
+  adminAccess: "/admin/access",
 };
 
 const navIcons: Record<View, string> = {
-  home: "⌂", construction: "▥", water: "≈", roads: "⌁", dashboard: "◫", guide: "?", ai: "✦", profile: "◎", admin: "⚙",
+  home: "⌂", construction: "▥", water: "≈", roads: "⌁", dashboard: "◫", guide: "?", ai: "✦", profile: "◎", admin: "⚙", adminAccess: "⚙",
 };
 
 const local = (value: LocaleText, lang: Language) => value[lang];
@@ -76,10 +82,7 @@ export default function CivilAppV2({ initialView = "home" }: { initialView?: Vie
   }, [lang]);
 
   useEffect(() => {
-    const onPopState = () => {
-      const next = (Object.entries(viewPaths).find(([, path]) => path === window.location.pathname)?.[0] ?? "home") as View;
-      setView(next);
-    };
+    const onPopState = () => setView(viewFromLocation(viewPaths));
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -88,20 +91,26 @@ export default function CivilAppV2({ initialView = "home" }: { initialView?: Vie
       if (event.key === "Escape") setMobileOpen(false);
     };
     window.addEventListener("popstate", onPopState);
+    window.addEventListener("hashchange", onPopState);
     window.addEventListener("keydown", onKeyDown);
-    return () => { window.removeEventListener("popstate", onPopState); window.removeEventListener("keydown", onKeyDown); };
+    onPopState();
+    return () => { window.removeEventListener("popstate", onPopState); window.removeEventListener("hashchange", onPopState); window.removeEventListener("keydown", onKeyDown); };
   }, []);
 
   const navigate = (next: View, section?: string) => {
     setView(next);
     setMobileOpen(false);
-    if (window.location.pathname !== viewPaths[next]) window.history.pushState({}, "", viewPaths[next]);
+    if (isGitHubPagesRuntime()) {
+      if (window.location.hash !== `#${viewPaths[next]}`) window.location.hash = viewPaths[next];
+    } else if (window.location.pathname !== viewPaths[next]) window.history.pushState({}, "", viewPaths[next]);
     if (section) window.setTimeout(() => document.getElementById(section)?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     else window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const primaryViews: View[] = ["home", "construction", "water", "roads", "ai", "guide"];
   const navLabels = lang === "ar" ? ["الرئيسية", "الإنشاءات", "المياه", "الطرق", "Civil AI", "دليل الاستخدام"] : ["Home", "Construction", "Water", "Roads", "Civil AI", "How to use"];
+  if (view === "admin" && isGitHubPagesRuntime()) return <SupabaseAdminPortal lang={lang} />;
+  if (view === "adminAccess" && isGitHubPagesRuntime()) return <SupabaseAdminAccess lang={lang} />;
   return <main>
     <header className="app-header v2-header">
       <button className="brand" type="button" onClick={() => navigate("home")}><b>CK</b><span>CivilKuwait<small>{lang === "ar" ? "بناء أذكى · أثر أقل" : "Smarter building · lower impact"}</small></span></button>
@@ -134,7 +143,7 @@ export default function CivilAppV2({ initialView = "home" }: { initialView?: Vie
     {view === "construction" && <ConstructionHubV2 lang={lang} t={t} />}
     {view === "water" && <WaterHub lang={lang} t={t} />}
     {view === "roads" && <RoadsHub lang={lang} t={t} />}
-    {view === "dashboard" && <ProjectDashboard lang={lang} t={t} navigate={navigate} />}
+    {view === "dashboard" && (isGitHubPagesRuntime() ? <SupabaseProjectDashboard lang={lang} navigate={navigate} /> : <ProjectDashboard lang={lang} t={t} navigate={navigate} />)}
     {view === "guide" && <GuidePage lang={lang} navigate={navigate} />}
     {view === "ai" && <AiWorkspace lang={lang} />}
     {view === "profile" && <ProfileWorkspace lang={lang} />}
@@ -324,8 +333,25 @@ function CalculatorStudio({ lang }: { lang: Language }) {
 function BoqWorkspace({ lang }: { lang: Language }) {
   const [rows, setRows] = useState<BoqRow[]>([{ id: 1, item: "", qty: "", unit: "m³", rate: "" }]);
   const [note, setNote] = useState("");
+  const [documentId, setDocumentId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const total = rows.reduce((sum, row) => sum + numeric(row.qty) * numeric(row.rate), 0);
   const update = (id: number, key: keyof BoqRow, value: string | number) => setRows((current) => current.map((row) => row.id === id ? { ...row, [key]: value } : row));
+  useEffect(() => {
+    if (!isGitHubPagesRuntime()) return;
+    const load = async () => {
+      const supabase = getSupabaseClient();
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) return;
+      const { data: document } = await supabase.from("boq_documents").select("id").eq("user_id", auth.user.id).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+      if (!document) return;
+      const { data: items } = await supabase.from("boq_items").select("description,quantity,unit,rate,position").eq("document_id", document.id).order("position");
+      if (items?.length) setRows(items.map((item, index) => ({ id: index + 1, item: String(item.description ?? ""), qty: String(item.quantity ?? ""), unit: String(item.unit ?? "unit"), rate: String(item.rate ?? "") })));
+      setDocumentId(document.id as string);
+      setNote(lang === "ar" ? "تم تحميل آخر BOQ محفوظ." : "Latest saved BOQ loaded.");
+    };
+    load().catch(() => undefined);
+  }, [lang]);
   const importCsv = async (file?: File) => {
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".csv")) { setNote(lang === "ar" ? "تحليل PDF وExcel يحتاج تسجيل الدخول وموفر تحليل المستندات؛ استخدم CSV الآن." : "PDF and Excel require sign-in and the document-analysis provider; use CSV for now."); return; }
@@ -336,7 +362,33 @@ function BoqWorkspace({ lang }: { lang: Language }) {
     });
     if (parsed.length) { setRows(parsed); setNote(lang === "ar" ? `تم استيراد ${parsed.length} بندًا. راجع الوحدات والقيم.` : `Imported ${parsed.length} items. Review units and values.`); }
   };
-  return <section className="workspace-section boq-v2" id="boq"><div className="workspace-title"><span>05</span><div><h2>{lang === "ar" ? "أداة BOQ العملية" : "Practical BOQ workspace"}</h2><p>{lang === "ar" ? "أدخل البنود يدويًا أو استورد CSV. الأسعار من عروضك أنت، ويمكن مقارنتها لاحقًا بالموردين ذوي المواصفة نفسها." : "Enter items manually or import CSV. Rates come from your own quotes and can later be compared with same-specification suppliers."}</p></div></div><div className="boq-toolbar"><label className="upload compact-upload"><span>⇧</span><b>{lang === "ar" ? "استيراد CSV" : "Import CSV"}</b><input type="file" accept=".csv,.pdf,.xlsx" onChange={(event) => importCsv(event.target.files?.[0])}/></label><button type="button" onClick={() => setRows((current) => [...current,{id:Date.now(),item:"",qty:"",unit:"m³",rate:""}])}>＋ {lang === "ar" ? "بند جديد" : "New item"}</button><span>{rows.length} {lang === "ar" ? "بنود" : "items"}</span>{note && <em>{note}</em>}</div><div className="boq-table"><div className="boq-row head"><span>{lang === "ar" ? "الوصف" : "Description"}</span><span>{lang === "ar" ? "الكمية" : "Quantity"}</span><span>{lang === "ar" ? "الوحدة" : "Unit"}</span><span>{lang === "ar" ? "السعر" : "Rate"}</span><span>{lang === "ar" ? "القيمة" : "Amount"}</span></div>{rows.map((row) => <div className="boq-row" key={row.id}><input value={row.item} onChange={(event) => update(row.id,"item",event.target.value)} placeholder={lang === "ar" ? "وصف البند" : "Item description"}/><input type="number" min="0" value={row.qty} onChange={(event) => update(row.id,"qty",event.target.value)}/><select value={row.unit} onChange={(event) => update(row.id,"unit",event.target.value)}>{["m³","m²","m","kg","ton","unit"].map((unit) => <option key={unit}>{unit}</option>)}</select><input type="number" min="0" value={row.rate} onChange={(event) => update(row.id,"rate",event.target.value)}/><output>{number(numeric(row.qty)*numeric(row.rate),lang)} KWD</output></div>)}</div><div className="boq-summary"><span><small>{lang === "ar" ? "تكلفة المواد/البنود المدخلة" : "Entered item cost"}</small><b>{number(total,lang)} KWD</b></span><span><small>{lang === "ar" ? "عمالة" : "Labour"}</small><b>{lang === "ar" ? "أضف كبند" : "Add as item"}</b></span><span><small>{lang === "ar" ? "معدات وتوصيل واحتياط" : "Equipment, delivery & contingency"}</small><b>{lang === "ar" ? "أضف كبنود" : "Add as items"}</b></span></div></section>;
+  const save = async () => {
+    if (!isGitHubPagesRuntime()) { navigateToPath("/profile"); return; }
+    setSaving(true); setNote("");
+    try {
+      const supabase = getSupabaseClient();
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) { navigateToPath("/profile"); return; }
+      let nextDocumentId = documentId;
+      if (!nextDocumentId) {
+        const { data, error } = await supabase.from("boq_documents").insert({ user_id: auth.user.id, title: lang === "ar" ? "جدول كميات مشروعي" : "My project BOQ", total }).select("id").single();
+        if (error) throw error;
+        nextDocumentId = data.id as string; setDocumentId(nextDocumentId);
+      } else {
+        const { error } = await supabase.from("boq_documents").update({ total }).eq("id", nextDocumentId).eq("user_id", auth.user.id);
+        if (error) throw error;
+        const { error: deleteError } = await supabase.from("boq_items").delete().eq("document_id", nextDocumentId);
+        if (deleteError) throw deleteError;
+      }
+      const payload = rows.map((row, position) => ({ document_id: nextDocumentId, position, description: row.item, quantity: numeric(row.qty), unit: row.unit, rate: numeric(row.rate) }));
+      const { error: itemError } = await supabase.from("boq_items").insert(payload);
+      if (itemError) throw itemError;
+      setNote(lang === "ar" ? "✓ تم حفظ BOQ في حسابك." : "✓ BOQ saved to your account.");
+    } catch (cause) {
+      setNote(lang === "ar" ? `تعذّر الحفظ: ${cause instanceof Error ? cause.message : "خطأ غير متوقع"}` : `Could not save: ${cause instanceof Error ? cause.message : "Unexpected error"}`);
+    } finally { setSaving(false); }
+  };
+  return <section className="workspace-section boq-v2" id="boq"><div className="workspace-title"><span>05</span><div><h2>{lang === "ar" ? "أداة BOQ العملية" : "Practical BOQ workspace"}</h2><p>{lang === "ar" ? "أدخل البنود يدويًا أو استورد CSV. الأسعار من عروضك أنت، ويمكن مقارنتها لاحقًا بالموردين ذوي المواصفة نفسها." : "Enter items manually or import CSV. Rates come from your own quotes and can later be compared with same-specification suppliers."}</p></div></div><div className="boq-toolbar"><label className="upload compact-upload"><span>⇧</span><b>{lang === "ar" ? "استيراد CSV" : "Import CSV"}</b><input type="file" accept=".csv,.pdf,.xlsx" onChange={(event) => importCsv(event.target.files?.[0])}/></label><button type="button" onClick={() => setRows((current) => [...current,{id:Date.now(),item:"",qty:"",unit:"m³",rate:""}])}>＋ {lang === "ar" ? "بند جديد" : "New item"}</button><button className="boq-save" type="button" disabled={saving} onClick={save}>{saving ? (lang === "ar" ? "جارٍ الحفظ…" : "Saving…") : (lang === "ar" ? "حفظ في حسابي" : "Save to account")}</button><span>{rows.length} {lang === "ar" ? "بنود" : "items"}</span>{note && <em>{note}</em>}</div><div className="boq-table"><div className="boq-row head"><span>{lang === "ar" ? "الوصف" : "Description"}</span><span>{lang === "ar" ? "الكمية" : "Quantity"}</span><span>{lang === "ar" ? "الوحدة" : "Unit"}</span><span>{lang === "ar" ? "السعر" : "Rate"}</span><span>{lang === "ar" ? "القيمة" : "Amount"}</span></div>{rows.map((row) => <div className="boq-row" key={row.id}><input value={row.item} onChange={(event) => update(row.id,"item",event.target.value)} placeholder={lang === "ar" ? "وصف البند" : "Item description"}/><input type="number" min="0" value={row.qty} onChange={(event) => update(row.id,"qty",event.target.value)}/><select value={row.unit} onChange={(event) => update(row.id,"unit",event.target.value)}>{["m³","m²","m","kg","ton","unit"].map((unit) => <option key={unit}>{unit}</option>)}</select><input type="number" min="0" value={row.rate} onChange={(event) => update(row.id,"rate",event.target.value)}/><output>{number(numeric(row.qty)*numeric(row.rate),lang)} KWD</output></div>)}</div><div className="boq-summary"><span><small>{lang === "ar" ? "تكلفة المواد/البنود المدخلة" : "Entered item cost"}</small><b>{number(total,lang)} KWD</b></span><span><small>{lang === "ar" ? "عمالة" : "Labour"}</small><b>{lang === "ar" ? "أضف كبند" : "Add as item"}</b></span><span><small>{lang === "ar" ? "معدات وتوصيل واحتياط" : "Equipment, delivery & contingency"}</small><b>{lang === "ar" ? "أضف كبنود" : "Add as items"}</b></span></div></section>;
 }
 
 function RoadmapWorkspace({ lang }: { lang: Language }) {
@@ -354,9 +406,38 @@ function InspectionWorkspace({ lang }: { lang: Language }) {
   const [selected, setSelected] = useState(inspectionChecklists[0].id);
   const [statuses, setStatuses] = useState<Record<string,"pass"|"fail"|"pending">>({});
   const [notes, setNotes] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [saving, setSaving] = useState(false);
   const checklist = inspectionChecklists.find((item) => item.id === selected)!;
   const completed = checklist.items.filter((_,index) => statuses[`${selected}-${index}`] && statuses[`${selected}-${index}`] !== "pending").length;
-  return <section className="workspace-section inspection-v2" id="checklists"><div className="workspace-title"><span>07</span><div><h2>{lang === "ar" ? "قوائم فحص الموقع" : "Site inspection checklists"}</h2><p>{lang === "ar" ? "مرّر كل بند Pass / Fail، أضف ملاحظتك وصورة. الحفظ الدائم يتطلب تسجيل الدخول." : "Mark every item Pass / Fail, then add notes and a photo. Persistent saving requires sign-in."}</p></div></div><div className="inspection-layout"><aside>{inspectionChecklists.map((item) => <button className={selected === item.id ? "active" : ""} type="button" key={item.id} onClick={() => { setSelected(item.id); setNotes(""); }}><span>☑</span><b>{local(item.title,lang)}</b><i>←</i></button>)}</aside><article><header><div><small>{lang === "ar" ? "قائمة الفحص الحالية" : "Current checklist"}</small><h3>{local(checklist.title,lang)}</h3></div><b>{completed}/{checklist.items.length}</b></header>{checklist.items.map((item,index) => { const key=`${selected}-${index}`; return <div className="inspection-row" key={key}><span>{String(index+1).padStart(2,"0")}</span><strong>{local(item,lang)}</strong><div><button className={statuses[key] === "pass" ? "active pass" : ""} type="button" onClick={() => setStatuses((current) => ({...current,[key]:"pass"}))}>✓ PASS</button><button className={statuses[key] === "fail" ? "active fail" : ""} type="button" onClick={() => setStatuses((current) => ({...current,[key]:"fail"}))}>× FAIL</button></div></div>})}<label className="field notes-field"><span>{lang === "ar" ? "ملاحظات المهندس" : "Engineer notes"}</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={lang === "ar" ? "اكتب الملاحظة والموقع والإجراء المطلوب…" : "Add note, location, and required action…"} /></label><div className="inspection-actions"><label className="upload compact-upload"><span>＋</span><b>{lang === "ar" ? "إضافة صورة" : "Add photo"}</b><input type="file" accept="image/*"/></label><a className="button primary green" href="/signin-with-chatgpt?return_to=/construction">{lang === "ar" ? "سجّل الدخول للحفظ" : "Sign in to save"}</a></div></article></div></section>;
+  const save = async () => {
+    if (!isGitHubPagesRuntime()) { navigateToPath("/profile"); return; }
+    setSaving(true); setSaveMessage("");
+    try {
+      const supabase = getSupabaseClient();
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) { navigateToPath("/profile"); return; }
+      if (photo && (photo.size > 10 * 1024 * 1024 || !["image/jpeg","image/png","image/webp"].includes(photo.type))) throw new Error(lang === "ar" ? "الصورة يجب أن تكون JPG أو PNG أو WEBP وأقل من 10MB." : "Photo must be JPG, PNG, or WEBP under 10MB.");
+      const runStatus = Object.values(statuses).some((value) => value === "fail") ? "requires_action" : completed === checklist.items.length ? "completed" : "in_progress";
+      const { data: run, error: runError } = await supabase.from("inspection_runs").insert({ user_id: auth.user.id, checklist_key: selected, title: local(checklist.title, lang), notes, status: runStatus }).select("id").single();
+      if (runError) throw runError;
+      const items = checklist.items.map((item, index) => ({ run_id: run.id, item_key: `${selected}-${index}`, label: local(item, lang), result: statuses[`${selected}-${index}`] ?? "pending" }));
+      const { error: itemError } = await supabase.from("inspection_items").insert(items);
+      if (itemError) throw itemError;
+      if (photo) {
+        const extension = photo.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") || "jpg";
+        const storagePath = `${auth.user.id}/inspections/${run.id}/photo.${extension}`;
+        const { error: uploadError } = await supabase.storage.from("civilkuwait-private").upload(storagePath, photo, { contentType: photo.type, upsert: false });
+        if (uploadError) throw uploadError;
+        const { error: documentError } = await supabase.from("project_documents").insert({ user_id: auth.user.id, storage_path: storagePath, file_name: photo.name, mime_type: photo.type, size_bytes: photo.size });
+        if (documentError) throw documentError;
+      }
+      setSaveMessage(lang === "ar" ? "✓ تم حفظ قائمة الفحص في حسابك." : "✓ Inspection saved to your account.");
+    } catch (cause) { setSaveMessage(lang === "ar" ? `تعذّر الحفظ: ${cause instanceof Error ? cause.message : "خطأ غير متوقع"}` : `Could not save: ${cause instanceof Error ? cause.message : "Unexpected error"}`); }
+    finally { setSaving(false); }
+  };
+  return <section className="workspace-section inspection-v2" id="checklists"><div className="workspace-title"><span>07</span><div><h2>{lang === "ar" ? "قوائم فحص الموقع" : "Site inspection checklists"}</h2><p>{lang === "ar" ? "مرّر كل بند Pass / Fail، أضف ملاحظتك وصورة. الحفظ الدائم يتطلب تسجيل الدخول." : "Mark every item Pass / Fail, then add notes and a photo. Persistent saving requires sign-in."}</p></div></div><div className="inspection-layout"><aside>{inspectionChecklists.map((item) => <button className={selected === item.id ? "active" : ""} type="button" key={item.id} onClick={() => { setSelected(item.id); setNotes(""); setPhoto(null); setSaveMessage(""); }}><span>☑</span><b>{local(item.title,lang)}</b><i>←</i></button>)}</aside><article><header><div><small>{lang === "ar" ? "قائمة الفحص الحالية" : "Current checklist"}</small><h3>{local(checklist.title,lang)}</h3></div><b>{completed}/{checklist.items.length}</b></header>{checklist.items.map((item,index) => { const key=`${selected}-${index}`; return <div className="inspection-row" key={key}><span>{String(index+1).padStart(2,"0")}</span><strong>{local(item,lang)}</strong><div><button className={statuses[key] === "pass" ? "active pass" : ""} type="button" onClick={() => setStatuses((current) => ({...current,[key]:"pass"}))}>✓ PASS</button><button className={statuses[key] === "fail" ? "active fail" : ""} type="button" onClick={() => setStatuses((current) => ({...current,[key]:"fail"}))}>× FAIL</button></div></div>})}<label className="field notes-field"><span>{lang === "ar" ? "ملاحظات المهندس" : "Engineer notes"}</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={lang === "ar" ? "اكتب الملاحظة والموقع والإجراء المطلوب…" : "Add note, location, and required action…"} /></label><div className="inspection-actions"><label className="upload compact-upload"><span>＋</span><b>{photo?.name || (lang === "ar" ? "إضافة صورة" : "Add photo")}</b><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)}/></label><button className="button primary green" type="button" disabled={saving} onClick={save}>{saving ? (lang === "ar" ? "جارٍ الحفظ…" : "Saving…") : (lang === "ar" ? "حفظ قائمة الفحص" : "Save inspection")}</button></div>{saveMessage && <p className="save-message">{saveMessage}</p>}</article></div></section>;
 }
 
 function GuidePage({ lang, navigate }: { lang: Language; navigate: (view: View, section?: string) => void }) {

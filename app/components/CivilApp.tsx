@@ -12,7 +12,7 @@ import {
 } from "../data/catalog";
 
 export type Language = "ar" | "en";
-export type View = "home" | "construction" | "water" | "roads" | "dashboard" | "guide" | "ai" | "profile" | "admin";
+export type View = "home" | "construction" | "water" | "roads" | "dashboard" | "guide" | "ai" | "profile" | "admin" | "adminAccess";
 
 export const copy = {
   ar: {
