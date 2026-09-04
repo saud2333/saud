@@ -52,7 +52,7 @@ export const defaultSources = [
   },
 ];
 
-const learningWords = /دور(?:ة|ات)|ورش(?:ة|ات)|معسكر|برنامج\s+تدريب|تدريب|course|workshop|bootcamp|training|leadership|management|innovation|performance|finance|future|robot|latex|solar|energy|data|engineering/i;
+const learningWords = /دور(?:ة|ات)|ورش(?:ة|ات)|معسكر|برنامج\s+تدريب|تدريب|course|workshop|bootcamp|training|leadership|management|innovation|performance|finance|future|science|school|lego|stem|robot|latex|solar|energy|data|engineering/i;
 const ignoredLabels = /^(الرئيسية|اتصل بنا|تواصل معنا|المزيد|اقرأ المزيد|طلباتي|my requests|login|home|menu|next|previous)$/i;
 const actionLabels = /^(register now|apply now|apply|read more|view courses|details?|التفاصيل|للتسجيل|سجل الآن|قدّم الآن)$/i;
 
@@ -327,6 +327,15 @@ async function syncSource(client, source) {
   if (sourceError) throw sourceError;
   if (rows.length) {
     const { error } = await client.from("learning_opportunities").upsert(rows.map((row) => ({ ...row, source_id: sourceRow.id })), { onConflict: "source_fingerprint" });
+    if (error) throw error;
+  }
+  if (rows.length && successfulPages.length === sourcePages.length) {
+    const { error } = await client
+      .from("learning_opportunities")
+      .update({ status: "closed", is_published: false })
+      .eq("source_id", sourceRow.id)
+      .eq("is_published", true)
+      .lt("last_seen_at", startedAt);
     if (error) throw error;
   }
   return rows.length;

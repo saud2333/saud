@@ -181,6 +181,8 @@ export default function KuwaitCoursesApp() {
   const [dataMode, setDataMode] = useState<DataMode>("connecting");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("الكل");
+  const [subcategory, setSubcategory] = useState("الكل");
+  const [selectedOrganizer, setSelectedOrganizer] = useState("الكل");
   const [kind, setKind] = useState<OpportunityKind | "all">("all");
   const [mode, setMode] = useState<OpportunityMode | "all">("all");
   const [age, setAge] = useState<number | null>(null);
@@ -248,11 +250,21 @@ export default function KuwaitCoursesApp() {
 
   const activeOpportunities = useMemo(() => opportunities.filter((item) => isOpportunityActive(item, clock)), [clock, opportunities]);
   const governors = useMemo(() => ["الكل", ...Array.from(new Set(activeOpportunities.map((item) => item.governorate)))], [activeOpportunities]);
+  const subcategories = useMemo(() => {
+    const candidates = category === "الكل" ? activeOpportunities : activeOpportunities.filter((item) => item.category === category);
+    return ["الكل", ...Array.from(new Set(candidates.map((item) => item.subcategory))).sort((a, b) => a.localeCompare(b, "ar"))];
+  }, [activeOpportunities, category]);
+  const organizers = useMemo(
+    () => ["الكل", ...Array.from(new Set(activeOpportunities.map((item) => item.organizer))).sort((a, b) => a.localeCompare(b, "ar"))],
+    [activeOpportunities],
+  );
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return activeOpportunities
       .filter((item) => category === "الكل" || item.category === category)
+      .filter((item) => subcategory === "الكل" || item.subcategory === subcategory)
+      .filter((item) => selectedOrganizer === "الكل" || item.organizer === selectedOrganizer)
       .filter((item) => kind === "all" || item.kind === kind)
       .filter((item) => mode === "all" || item.mode === mode)
       .filter((item) => governorate === "الكل" || item.governorate === governorate)
@@ -263,7 +275,7 @@ export default function KuwaitCoursesApp() {
         if (sort === "title") return a.title.localeCompare(b.title, "ar");
         return Number(b.featured) - Number(a.featured);
       });
-  }, [activeOpportunities, age, category, governorate, kind, mode, query, sort]);
+  }, [activeOpportunities, age, category, governorate, kind, mode, query, selectedOrganizer, sort, subcategory]);
 
   useEffect(() => {
     const context = document.modelContext;
@@ -287,7 +299,10 @@ export default function KuwaitCoursesApp() {
         execute(input) {
           const value = typeof input === "object" && input !== null ? input as { query?: unknown; category?: unknown; age?: unknown } : {};
           if (typeof value.query === "string") setQuery(value.query.slice(0, 100));
-          if (typeof value.category === "string" && categories.includes(value.category as typeof categories[number])) setCategory(value.category);
+          if (typeof value.category === "string" && categories.includes(value.category as typeof categories[number])) {
+            setCategory(value.category);
+            setSubcategory("الكل");
+          }
           if (value.age === null) setAge(null);
           if (typeof value.age === "number" && Number.isInteger(value.age) && value.age >= 6 && value.age <= 65) setAge(value.age);
           window.setTimeout(() => catalogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
@@ -301,7 +316,15 @@ export default function KuwaitCoursesApp() {
   }, []);
 
   const featured = activeOpportunities.filter((item) => item.featured).slice(0, 3);
-  const activeFilterCount = [category !== "الكل", kind !== "all", mode !== "all", age !== null, governorate !== "الكل"].filter(Boolean).length;
+  const activeFilterCount = [
+    category !== "الكل",
+    subcategory !== "الكل",
+    selectedOrganizer !== "الكل",
+    kind !== "all",
+    mode !== "all",
+    age !== null,
+    governorate !== "الكل",
+  ].filter(Boolean).length;
 
   function setSiteTheme(next: "light" | "dark") {
     setTheme(next);
@@ -313,6 +336,8 @@ export default function KuwaitCoursesApp() {
   function clearFilters() {
     setQuery("");
     setCategory("الكل");
+    setSubcategory("الكل");
+    setSelectedOrganizer("الكل");
     setKind("all");
     setMode("all");
     setAge(null);
@@ -345,6 +370,7 @@ export default function KuwaitCoursesApp() {
       ageMatches(item, nextAge),
     ).slice(0, 3);
     setCategory(nextCategory);
+    setSubcategory("الكل");
     setKind(nextKind);
     setMode(nextMode);
     setAge(nextAge);
@@ -406,7 +432,7 @@ export default function KuwaitCoursesApp() {
         {categories.slice(1).map((item) => {
           const meta = categoryMeta[item];
           const count = activeOpportunities.filter((opportunity) => opportunity.category === item).length;
-          return <button type="button" key={item} className={category === item ? "active" : ""} onClick={() => { setCategory(item); catalogRef.current?.scrollIntoView({ behavior: "smooth" }); }}>
+          return <button type="button" key={item} className={category === item ? "active" : ""} onClick={() => { setCategory(item); setSubcategory("الكل"); catalogRef.current?.scrollIntoView({ behavior: "smooth" }); }}>
             <span className="category-icon">{meta.icon}</span>
             <span><small>{meta.code} · {count.toLocaleString("ar-KW")}</small><b>{item}</b><em>{meta.blurb}</em></span>
             <i>↗</i>
@@ -444,6 +470,25 @@ export default function KuwaitCoursesApp() {
             <div className="filter-mobile-head"><b>فلترة النتائج</b><button type="button" onClick={() => setFiltersOpen(false)}>×</button></div>
             <div className="filter-heading"><span>FILTER / 01</span><button type="button" onClick={clearFilters}>مسح الكل</button></div>
             <fieldset>
+              <legend>المجال والتخصص</legend>
+              <label className="select-label">المجال
+                <select value={category} onChange={(event) => { setCategory(event.target.value); setSubcategory("الكل"); }}>
+                  {categories.map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </label>
+              <label className="select-label">التخصص الدقيق
+                <select value={subcategory} onChange={(event) => setSubcategory(event.target.value)}>
+                  {subcategories.map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </label>
+            </fieldset>
+            <fieldset>
+              <legend>الجهة المنظمة</legend>
+              <select value={selectedOrganizer} onChange={(event) => setSelectedOrganizer(event.target.value)} aria-label="الجهة المنظمة">
+                {organizers.map((item) => <option key={item}>{item}</option>)}
+              </select>
+            </fieldset>
+            <fieldset>
               <legend>نوع الفرصة</legend>
               <div className="option-row">
                 {([ ["all", "الكل"], ["course", "دورة"], ["workshop", "ورشة"], ["camp", "معسكر"] ] as const).map(([value, label]) => <button key={value} className={kind === value ? "active" : ""} type="button" onClick={() => setKind(value)}>{label}</button>)}
@@ -455,6 +500,14 @@ export default function KuwaitCoursesApp() {
                 <div><b>{age === null ? "كل الأعمار" : `${age} سنة`}</b><button type="button" onClick={() => setAge(null)}>الكل</button></div>
                 <input type="range" min="6" max="65" step="1" value={age ?? 25} onChange={(event) => setAge(Number(event.target.value))} aria-label="العمر" />
                 <div className="range-labels"><span>6</span><span>18</span><span>35</span><span>65+</span></div>
+                <div className="age-entry">
+                  <label>اكتب العمر
+                    <input type="number" min="6" max="65" inputMode="numeric" value={age ?? ""} placeholder="مثال: 14" onChange={(event) => setAge(event.target.value ? Math.min(65, Math.max(6, Number(event.target.value))) : null)} />
+                  </label>
+                  <div className="age-presets" aria-label="أعمار سريعة">
+                    {[6, 10, 14, 18, 25].map((value) => <button key={value} className={age === value ? "active" : ""} type="button" onClick={() => setAge(value)}>{value}</button>)}
+                  </div>
+                </div>
                 {age !== null && <small>تُخفى الفرص التي لم يعلن منظمها العمر لتفادي التخمين.</small>}
               </div>
             </fieldset>
@@ -481,6 +534,11 @@ export default function KuwaitCoursesApp() {
             </div>
             <div className="active-filters">
               {category !== "الكل" && <button type="button" onClick={() => setCategory("الكل")}>{category} ×</button>}
+              {subcategory !== "الكل" && <button type="button" onClick={() => setSubcategory("الكل")}>{subcategory} ×</button>}
+              {selectedOrganizer !== "الكل" && <button type="button" onClick={() => setSelectedOrganizer("الكل")}>{selectedOrganizer} ×</button>}
+              {kind !== "all" && <button type="button" onClick={() => setKind("all")}>{kindLabels[kind]} ×</button>}
+              {mode !== "all" && <button type="button" onClick={() => setMode("all")}>{modeLabels[mode]} ×</button>}
+              {governorate !== "الكل" && <button type="button" onClick={() => setGovernorate("الكل")}>{governorate} ×</button>}
               {age !== null && <button type="button" onClick={() => setAge(null)}>عمر {age} ×</button>}
               {query && <button type="button" onClick={() => setQuery("")}>«{query}» ×</button>}
             </div>
@@ -502,6 +560,10 @@ export default function KuwaitCoursesApp() {
                     <div><dt>الرسوم</dt><dd>{priceLabel(item.priceKwd)}</dd></div>
                   </dl>
                   <div className="course-organizer"><span className="org-monogram">{organizerMark(item.organizer)}</span><span><small>الجهة المنظمة</small><b>{item.organizer}</b></span></div>
+                  <div className="course-confidence">
+                    <span>✓ مصدر رسمي</span>
+                    <small>آخر مراجعة: {checkedLabel(item.sourceCheckedAt)}</small>
+                  </div>
                   <div className="course-actions">
                     <button type="button" onClick={() => setSelected(item)}>التفاصيل</button>
                     <a href={officialRegistrationDestination(item)} target="_blank" rel="noreferrer" aria-label={`افتح صفحة ${item.title} في موقع الجهة المنظمة`}>موقع الجهة للتسجيل <span>↗</span></a>

@@ -21,6 +21,9 @@ test("implements the Arabic Mirsad discovery experience", async () => {
   assert.match(page, /KuwaitCoursesApp/);
   assert.match(app, /تعلّم مهارات المستقبل/);
   assert.match(app, /filter_learning_opportunities/);
+  assert.match(app, /المجال والتخصص/);
+  assert.match(app, /الجهة المنظمة/);
+  assert.match(app, /اكتب العمر/);
   assert.match(app, /مُرشد مِرصاد/);
   assert.match(app, /learning-opportunities-live/);
   assert.match(app, /السعر غير منشور/);
@@ -30,6 +33,9 @@ test("implements the Arabic Mirsad discovery experience", async () => {
   assert.match(data, /مؤسسة الكويت للتقدم العلمي/);
   assert.match(data, /معهد الكويت للأبحاث العلمية/);
   assert.match(data, /مركز صباح الأحمد للموهبة والإبداع/);
+  assert.match(data, /14–18 سنة/);
+  assert.match(data, /6–10 سنوات/);
+  assert.match(data, /14–17 سنة/);
   assert.doesNotMatch(data, /forms\.office\.com/);
   assert.match(app, /officialRegistrationDestination/);
   assert.match(app, /موقع الجهة للتسجيل/);
@@ -41,6 +47,7 @@ test("implements the Arabic Mirsad discovery experience", async () => {
   assert.match(officialLinks, /kuwaitgbc\\\.com/);
   assert.match(css, /@media \(max-width: 680px\)/);
   assert.match(css, /prefers-reduced-motion/);
+  assert.match(css, /brand-bar-drift/);
   assert.match(css, /html\[data-theme="dark"\]/);
   assert.match(layout, /mirsad-theme/);
 });
