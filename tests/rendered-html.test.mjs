@@ -26,6 +26,10 @@ test("implements the Arabic Mirsad discovery experience", async () => {
   assert.match(app, /السعر غير منشور/);
   assert.match(data, /Service Robotics for Industry/);
   assert.match(data, /لم يحدده المنظم/);
+  assert.match(data, /مجلس الكويت للمباني الخضراء/);
+  assert.match(data, /مؤسسة الكويت للتقدم العلمي/);
+  assert.match(data, /معهد الكويت للأبحاث العلمية/);
+  assert.match(data, /مركز صباح الأحمد للموهبة والإبداع/);
   assert.doesNotMatch(data, /forms\.office\.com/);
   assert.match(app, /officialRegistrationDestination/);
   assert.match(app, /موقع الجهة للتسجيل/);

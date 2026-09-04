@@ -48,6 +48,13 @@ test("never sends registration directly to an external form provider", () => {
   assert.equal(row.source_url, "https://example.test/courses");
 });
 
+test("keeps structured expiry data when the same course also appears as a link", () => {
+  const html = '<script type="application/ld+json">{"@type":"Course","name":"Past AI Course","url":"/past-ai","endDate":"2025-01-03T14:00:00+03:00"}</script><a href="/past-ai">Past AI Course</a>';
+  const row = parseSourcePage(html, source, "2026-09-04").find((item) => item.title_ar === "Past AI Course");
+  assert.equal(row.status, "closed");
+  assert.equal(row.is_published, false);
+});
+
 test("extracts dated KISR-style table rows and closes past courses", () => {
   const html = `<table><tr><td>1</td><td>Ethical AI in Research</td><td>7-9/12/2025</td><td>Shuwaikh</td><td><a href="https://example.test/form">Form</a></td></tr></table>`;
   const rows = parseSourcePage(html, source, "2026-09-04");

@@ -14,8 +14,9 @@ export const defaultSources = [
     key: "kfas",
     name: "مؤسسة الكويت للتقدم العلمي — KFAS",
     websiteUrl: "https://www.kfas.org.kw/",
-    feedUrl: "https://apply.kfas.org.kw/FormDetails/SubServices?Id=54043757-b3f6-f011-8406-70a8a51d5041",
+    feedUrl: "https://apply.kfas.org.kw/Offers/ListOffers",
     feedUrls: [
+      "https://apply.kfas.org.kw/Offers/ListOffers",
       "https://apply.kfas.org.kw/FormDetails/SubServices?Id=54043757-b3f6-f011-8406-70a8a51d5041",
       "https://apply.kfas.org.kw/",
     ],
@@ -51,9 +52,9 @@ export const defaultSources = [
   },
 ];
 
-const learningWords = /دور(?:ة|ات)|ورش(?:ة|ات)|معسكر|برنامج\s+تدريب|تدريب|course|workshop|bootcamp|training|robot|latex|solar|energy|data|engineering/i;
-const ignoredLabels = /^(الرئيسية|اتصل بنا|تواصل معنا|المزيد|اقرأ المزيد|login|home|menu|next|previous)$/i;
-const actionLabels = /^(register now|apply now|apply|read more|view courses|للتسجيل|سجل الآن|قدّم الآن)$/i;
+const learningWords = /دور(?:ة|ات)|ورش(?:ة|ات)|معسكر|برنامج\s+تدريب|تدريب|course|workshop|bootcamp|training|leadership|management|innovation|performance|finance|future|robot|latex|solar|energy|data|engineering/i;
+const ignoredLabels = /^(الرئيسية|اتصل بنا|تواصل معنا|المزيد|اقرأ المزيد|طلباتي|my requests|login|home|menu|next|previous)$/i;
+const actionLabels = /^(register now|apply now|apply|read more|view courses|details?|التفاصيل|للتسجيل|سجل الآن|قدّم الآن)$/i;
 
 function decodeEntities(value) {
   return value
@@ -287,9 +288,17 @@ function parseCourseTables(html, source, checkedAt) {
   return rows;
 }
 
+function uniqueRows(rows) {
+  const unique = new Map();
+  for (const row of rows) {
+    if (!unique.has(row.source_fingerprint)) unique.set(row.source_fingerprint, row);
+  }
+  return [...unique.values()];
+}
+
 export function parseSourcePage(html, source, checkedAt = new Date().toISOString().slice(0, 10)) {
   const combined = [...parseJsonLd(html, source, checkedAt), ...parseCourseTables(html, source, checkedAt), ...parseLearningLinks(html, source, checkedAt)];
-  return [...new Map(combined.map((row) => [row.source_fingerprint, row])).values()];
+  return uniqueRows(combined);
 }
 
 export function isExpired(row, now = Date.now()) {
@@ -309,7 +318,7 @@ async function syncSource(client, source) {
   }));
   const successfulPages = sourcePages.filter((result) => result.status === "fulfilled");
   if (!successfulPages.length) throw new Error(`${source.name}: all official pages failed`);
-  const rows = [...new Map(successfulPages.flatMap((result) => result.value).map((row) => [row.source_fingerprint, row])).values()];
+  const rows = uniqueRows(successfulPages.flatMap((result) => result.value));
   const { data: sourceRow, error: sourceError } = await client.from("learning_sources").upsert({
     name: source.name, website_url: source.websiteUrl, feed_url: source.feedUrl, parser_key: "auto", is_active: true,
     last_synced_at: startedAt, last_sync_status: successfulPages.length === sourcePages.length ? "ok" : "partial",

@@ -168,6 +168,14 @@ function isOpportunityActive(item: LearningOpportunity, now: number) {
   return Number.isNaN(timestamp) || timestamp > now;
 }
 
+function mergeWithCurated(liveItems: LearningOpportunity[]) {
+  const seen = new Set(liveItems.map((item) => (item.organizer + "#" + item.title).toLowerCase()));
+  return [
+    ...liveItems,
+    ...fallbackOpportunities.filter((item) => !seen.has((item.organizer + "#" + item.title).toLowerCase())),
+  ];
+}
+
 export default function KuwaitCoursesApp() {
   const [opportunities, setOpportunities] = useState(fallbackOpportunities);
   const [dataMode, setDataMode] = useState<DataMode>("connecting");
@@ -218,7 +226,8 @@ export default function KuwaitCoursesApp() {
         .limit(200);
       if (!active) return;
       if (!error && data?.length) {
-        setOpportunities(data.map((row) => fromSupabaseRow(row as Record<string, unknown>)));
+        const liveItems = data.map((row) => fromSupabaseRow(row as Record<string, unknown>));
+        setOpportunities(mergeWithCurated(liveItems));
         setDataMode("live");
       } else {
         setDataMode("curated");
