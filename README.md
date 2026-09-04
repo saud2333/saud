@@ -17,13 +17,16 @@ npm run dev
 2. شغّل `supabase/migrations/0001_civilkuwait_platform.sql` إذا لم يكن مطبقًا مسبقًا.
 3. شغّل `supabase/migrations/0002_mirsad_learning_opportunities.sql`.
 4. شغّل `supabase/migrations/0003_mirsad_automatic_sync.sql` لإضافة موعد إغلاق التسجيل وقاعدة الأرشفة التلقائية.
-5. أضف أو حدّث السجلات من لوحة Supabase؛ ستظهر التعديلات في الموقع مباشرة عند تفعيل Realtime.
+5. شغّل `supabase/migrations/0004_mirsad_official_registration_urls.sql` لتنظيف روابط النماذج الخارجية وفرض نطاق الجهة الرسمي.
+6. أضف أو حدّث السجلات من لوحة Supabase؛ ستظهر التعديلات في الموقع مباشرة عند تفعيل Realtime.
 
 سياسات RLS تسمح للمتصفح بقراءة السجلات المنشورة فقط. لا توجد سياسة كتابة عامة؛ التحديث المجدول يجب أن يتم من GitHub Actions أو خدمة موثوقة تحتفظ بالمفتاح السري في Secrets.
 
 ## بوت التحديث التلقائي
 
 المهمة `.github/workflows/sync-opportunities.yml` تعمل كل 30 دقيقة، وتستخرج الفرص من البيانات المنظمة `JSON-LD` والروابط التعليمية والجداول المؤرخة في المصادر الرسمية. المصادر الأساسية المضافة حاليًا هي **KGBC وKFAS وKISR وSACGC**، إلى جانب صفحات جامعة الكويت التأسيسية. تضيف المهمة السجلات الجديدة إلى Supabase، وتخفي أي سجل تجاوز `registration_ends_at` (أو `ends_at` عند غياب موعد مستقل للتسجيل). فشل مصدر واحد لا يمنع بقية المصادر من التحديث.
+
+كل رابط تسجيل يمرّ على سياسة نطاقات موثوقة: `kuwaitgbc.com` و`kfas.org.kw` و`kisr.edu.kw` و`sacgc.org` و`ku.edu.kw`. إذا نشرت الجهة زرًا يقود إلى Microsoft Forms أو Google Forms أو Zoho، يحفظ البوت بدلًا منه صفحة الفرصة الرسمية لدى الجهة؛ والواجهة تطبق الحماية نفسها قبل فتح الرابط.
 
 أضف السرّين التاليين في **GitHub → Settings → Secrets and variables → Actions**:
 

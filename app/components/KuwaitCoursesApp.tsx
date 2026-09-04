@@ -124,6 +124,42 @@ function organizerMark(organizer: string) {
   return "KW";
 }
 
+const officialRegistrationPortals = [
+  { organizer: /KGBC|المباني الخضراء/i, domains: ["kuwaitgbc.com"], landing: "https://www.kuwaitgbc.com/events" },
+  { organizer: /KFAS|التقدم العلمي/i, domains: ["kfas.org.kw"], landing: "https://apply.kfas.org.kw/" },
+  { organizer: /KISR|الأبحاث العلمية/i, domains: ["kisr.edu.kw"], landing: "https://www.kisr.edu.kw/ar/careers-training/training-courses/" },
+  { organizer: /SACGC|صباح الأحمد/i, domains: ["sacgc.org"], landing: "https://sacgc.org/en/" },
+  { organizer: /جامعة الكويت.*مركز خدمة المجتمع/i, domains: ["ku.edu.kw"], landing: "https://ccsce.ku.edu.kw/" },
+  { organizer: /جامعة الكويت/i, domains: ["ku.edu.kw"], landing: "https://engineering.ku.edu.kw/ar/vdpct/about/office-consultation-and-training" },
+] as const;
+
+function hasOfficialDomain(value: string, domains: readonly string[]) {
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase();
+    return /^https?:$/.test(url.protocol) && domains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
+}
+
+function officialPortalFor(item: LearningOpportunity) {
+  return officialRegistrationPortals.find((portal) => portal.organizer.test(item.organizer))
+    ?? officialRegistrationPortals.find((portal) => hasOfficialDomain(item.sourceUrl, portal.domains));
+}
+
+function officialRegistrationDestination(item: LearningOpportunity) {
+  const portal = officialPortalFor(item);
+  if (!portal) return "#sources";
+  return hasOfficialDomain(item.registrationUrl, portal.domains) ? item.registrationUrl : portal.landing;
+}
+
+function officialSourceDestination(item: LearningOpportunity) {
+  const portal = officialPortalFor(item);
+  if (!portal) return "#sources";
+  return hasOfficialDomain(item.sourceUrl, portal.domains) ? item.sourceUrl : portal.landing;
+}
+
 function isOpportunityActive(item: LearningOpportunity, now: number) {
   if (item.status === "closed") return false;
   const deadline = item.registrationEndsAt ?? item.endsAt;
@@ -459,7 +495,7 @@ export default function KuwaitCoursesApp() {
                   <div className="course-organizer"><span className="org-monogram">{organizerMark(item.organizer)}</span><span><small>الجهة المنظمة</small><b>{item.organizer}</b></span></div>
                   <div className="course-actions">
                     <button type="button" onClick={() => setSelected(item)}>التفاصيل</button>
-                    <a href={item.registrationUrl} target="_blank" rel="noreferrer">التسجيل الرسمي <span>↗</span></a>
+                    <a href={officialRegistrationDestination(item)} target="_blank" rel="noreferrer" aria-label={`افتح صفحة ${item.title} في موقع الجهة المنظمة`}>موقع الجهة للتسجيل <span>↗</span></a>
                   </div>
                 </div>
               </article>)}
@@ -471,7 +507,7 @@ export default function KuwaitCoursesApp() {
       <section className="source-section" id="sources">
         <div><p className="section-index">03 / كيف نتحقق؟</p><h2>المعلومة تبدأ من المصدر.</h2></div>
         <div className="source-steps">
-          <article><span>01</span><h3>نجمع</h3><p>من صفحات الجهات التدريبية وروابط التسجيل الرسمية.</p></article>
+          <article><span>01</span><h3>نجمع</h3><p>من صفحات الجهات التدريبية، ونفتح التسجيل داخل نطاق الجهة نفسها فقط.</p></article>
           <article><span>02</span><h3>نراجع</h3><p>نثبت الوصف والعمر والمكان، ونترك غير المنشور «غير محدد».</p></article>
           <article><span>03</span><h3>نحدّث</h3><p>بوت GitHub يفحص المصادر كل 30 دقيقة، وSupabase يرسل التغيير للواجهة فورًا.</p></article>
         </div>
@@ -522,8 +558,8 @@ export default function KuwaitCoursesApp() {
               <div><dt>الرسوم</dt><dd>{priceLabel(selected.priceKwd)}</dd></div>
             </dl>
             <div className="tag-list">{selected.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
-            <div className="verification-note"><span>✓</span><p><b>آخر تحقق من المصدر: {checkedLabel(selected.sourceCheckedAt)}</b><small>راجع التفاصيل النهائية في موقع الجهة قبل التسجيل.</small></p></div>
-            <div className="detail-actions"><a className="primary-link" href={selected.registrationUrl} target="_blank" rel="noreferrer">اذهب للتسجيل الرسمي ↗</a><a href={selected.sourceUrl} target="_blank" rel="noreferrer">عرض المصدر</a></div>
+            <div className="verification-note"><span>✓</span><p><b>آخر تحقق من المصدر: {checkedLabel(selected.sourceCheckedAt)}</b><small>زر التسجيل يفتح موقع الجهة المنظمة فقط، ولا يحوّلك مِرصاد إلى نموذج خارجي مباشرة.</small></p></div>
+            <div className="detail-actions"><a className="primary-link" href={officialRegistrationDestination(selected)} target="_blank" rel="noreferrer">افتح صفحة التسجيل في موقع الجهة ↗</a><a href={officialSourceDestination(selected)} target="_blank" rel="noreferrer">عرض المصدر</a></div>
           </div>
         </article>
       </div>}

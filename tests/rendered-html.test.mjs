@@ -6,7 +6,7 @@ const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
 
 test("implements the Arabic Mirsad discovery experience", async () => {
-  const [layout, page, app, css, data, migration, automaticSync] = await Promise.all([
+  const [layout, page, app, css, data, migration, automaticSync, officialLinks] = await Promise.all([
     read("app/layout.tsx"),
     read("app/page.tsx"),
     read("app/components/KuwaitCoursesApp.tsx"),
@@ -14,6 +14,7 @@ test("implements the Arabic Mirsad discovery experience", async () => {
     read("app/data/opportunities.ts"),
     read("supabase/migrations/0002_mirsad_learning_opportunities.sql"),
     read("supabase/migrations/0003_mirsad_automatic_sync.sql"),
+    read("supabase/migrations/0004_mirsad_official_registration_urls.sql"),
   ]);
   assert.match(layout, /مِرصاد \| دليل دورات وورش الكويت/);
   assert.match(layout, /lang="ar" dir="rtl"/);
@@ -25,10 +26,15 @@ test("implements the Arabic Mirsad discovery experience", async () => {
   assert.match(app, /السعر غير منشور/);
   assert.match(data, /Service Robotics for Industry/);
   assert.match(data, /لم يحدده المنظم/);
+  assert.doesNotMatch(data, /forms\.office\.com/);
+  assert.match(app, /officialRegistrationDestination/);
+  assert.match(app, /موقع الجهة للتسجيل/);
   assert.match(migration, /learning_opportunities_public_read/);
   assert.match(migration, /supabase_realtime/);
   assert.match(automaticSync, /archive_expired_learning_opportunities/);
   assert.match(automaticSync, /registration_ends_at/);
+  assert.match(officialLinks, /normalize_learning_opportunity_registration/);
+  assert.match(officialLinks, /kuwaitgbc\\\.com/);
   assert.match(css, /@media \(max-width: 680px\)/);
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /html\[data-theme="dark"\]/);

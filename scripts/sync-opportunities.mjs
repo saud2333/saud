@@ -78,6 +78,30 @@ function absoluteUrl(value, base) {
   }
 }
 
+function officialDomain(source) {
+  try {
+    return new URL(source.websiteUrl).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+export function isOfficialSourceUrl(value, source) {
+  try {
+    const url = new URL(value);
+    const domain = officialDomain(source);
+    const hostname = url.hostname.toLowerCase();
+    return Boolean(domain) && /^https?:$/.test(url.protocol) && (hostname === domain || hostname.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
+}
+
+function officialUrlOrLanding(value, source) {
+  const candidate = absoluteUrl(value, source.feedUrl);
+  return isOfficialSourceUrl(candidate, source) ? candidate : source.feedUrl;
+}
+
 function firstValue(value) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -157,8 +181,8 @@ function normalizeJsonLd(node, source, checkedAt) {
   const organizer = asObject(firstValue(node.organizer));
   const place = asObject(firstValue(node.location));
   const address = asObject(place.address);
-  const sourceUrl = absoluteUrl(node.url ?? offers.url, source.feedUrl);
-  const registrationUrl = absoluteUrl(offers.url ?? node.url, sourceUrl);
+  const sourceUrl = officialUrlOrLanding(node.url ?? offers.url, source);
+  const registrationUrl = officialUrlOrLanding(offers.url ?? node.url, source);
   const description = stripHtml(node.description ?? `تفاصيل الفرصة كما نشرتها ${source.name}.`).slice(0, 1800);
   const fullText = `${title} ${description}`;
   const [category, subcategory] = classify(fullText);
@@ -224,7 +248,8 @@ function parseLearningLinks(html, source, checkedAt) {
       kind: inferKind(evidence), category, subcategory, organizer: source.name, location: "الكويت", governorate: "غير محدد",
       mode: inferMode({}, evidence), min_age: null, max_age: null, age_label: "لم يحدده المنظم",
       duration_label: "يحدده المنظم", schedule_label: "الموعد يحدده المنظم", starts_at: null, ends_at: null,
-      registration_ends_at: null, price_kwd: null, status: "verify", registration_url: href, source_url: href,
+      registration_ends_at: null, price_kwd: null, status: "verify",
+      registration_url: officialUrlOrLanding(href, source), source_url: officialUrlOrLanding(href, source),
       image_url: imageFor(category), tags: [subcategory], featured: false, is_published: true,
       source_checked_at: checkedAt, source_fingerprint: fingerprint(href, title), last_seen_at: new Date().toISOString(),
     });
@@ -243,7 +268,8 @@ function parseCourseTables(html, source, checkedAt) {
     const title = cells.slice(0, dateIndex).findLast((cell) => cell.length >= 4 && !/^\d+$/.test(cell));
     if (!title) continue;
     const rowLinks = [...rowHtml.matchAll(/href\s*=\s*(["'])(.*?)\1/gi)].map((match) => absoluteUrl(decodeEntities(match[2]), source.feedUrl));
-    const registrationUrl = rowLinks.find((url) => /^https?:/i.test(url) && !/chrome-extension/i.test(url)) ?? source.feedUrl;
+    const candidateUrl = rowLinks.find((url) => /^https?:/i.test(url) && !/chrome-extension/i.test(url)) ?? source.feedUrl;
+    const registrationUrl = officialUrlOrLanding(candidateUrl, source);
     const { startsAt, endsAt } = parseDateRange(dateCell);
     const active = Boolean(startsAt && new Date(startsAt).getTime() > Date.now());
     const [category, subcategory] = classify(title);

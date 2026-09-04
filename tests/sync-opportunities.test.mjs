@@ -41,6 +41,13 @@ test("uses the nearest program heading for generic registration buttons", () => 
   assert.equal(row.registration_url, "https://example.test/register");
 });
 
+test("never sends registration directly to an external form provider", () => {
+  const html = `<section><h1>STEM Robotics Workshop</h1><a href="https://forms.external.test/apply">Register Now</a></section>`;
+  const [row] = parseSourcePage(html, source, "2030-09-01");
+  assert.equal(row.registration_url, "https://example.test/courses");
+  assert.equal(row.source_url, "https://example.test/courses");
+});
+
 test("extracts dated KISR-style table rows and closes past courses", () => {
   const html = `<table><tr><td>1</td><td>Ethical AI in Research</td><td>7-9/12/2025</td><td>Shuwaikh</td><td><a href="https://example.test/form">Form</a></td></tr></table>`;
   const rows = parseSourcePage(html, source, "2026-09-04");

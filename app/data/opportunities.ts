@@ -32,7 +32,7 @@ export type LearningOpportunity = {
   tags: string[];
 };
 
-const kuRegistration = "https://forms.office.com/r/X4dGhF6Aax?origin=lprLink";
+const kuRegistration = "https://engineering.ku.edu.kw/ar/vdpct/about/office-consultation-and-training";
 
 export const categories = [
   "الكل",
