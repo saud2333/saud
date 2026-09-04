@@ -19,6 +19,9 @@ export type LearningOpportunity = {
   ageLabel: string;
   duration: string;
   schedule: string;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  registrationEndsAt?: string | null;
   priceKwd: number | null;
   status: OpportunityStatus;
   registrationUrl: string;

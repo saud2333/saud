@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- static export and user-controlled source images require ordinary img elements. */
+
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "../lib/supabase";
 import {
@@ -82,6 +84,9 @@ function fromSupabaseRow(row: Record<string, unknown>): LearningOpportunity {
     ageLabel: asString(row.age_label, "لم يحدده المنظم"),
     duration: asString(row.duration_label, "يحدده المنظم"),
     schedule: asString(row.schedule_label, "الموعد يحدده المنظم"),
+    startsAt: asString(row.starts_at) || null,
+    endsAt: asString(row.ends_at) || null,
+    registrationEndsAt: asString(row.registration_ends_at) || null,
     priceKwd: asNumber(row.price_kwd),
     status,
     registrationUrl: asString(row.registration_url, asString(row.source_url, "#")),
@@ -110,6 +115,14 @@ function checkedLabel(date: string) {
   return Number.isNaN(parsed.getTime()) ? date : new Intl.DateTimeFormat("ar-KW", { day: "numeric", month: "short", year: "numeric" }).format(parsed);
 }
 
+function isOpportunityActive(item: LearningOpportunity, now: number) {
+  if (item.status === "closed") return false;
+  const deadline = item.registrationEndsAt ?? item.endsAt;
+  if (!deadline) return true;
+  const timestamp = new Date(deadline).getTime();
+  return Number.isNaN(timestamp) || timestamp > now;
+}
+
 export default function KuwaitCoursesApp() {
   const [opportunities, setOpportunities] = useState(fallbackOpportunities);
   const [dataMode, setDataMode] = useState<DataMode>("connecting");
@@ -119,22 +132,29 @@ export default function KuwaitCoursesApp() {
   const [mode, setMode] = useState<OpportunityMode | "all">("all");
   const [age, setAge] = useState<number | null>(null);
   const [governorate, setGovernorate] = useState("الكل");
-  const [includeClosed, setIncludeClosed] = useState(false);
   const [sort, setSort] = useState<SortMode>("featured");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selected, setSelected] = useState<LearningOpportunity | null>(null);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window === "undefined") return "light";
+    const saved = window.localStorage.getItem("mirsad-theme");
+    return saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+  });
   const [botOpen, setBotOpen] = useState(false);
   const [botText, setBotText] = useState("");
   const [botReply, setBotReply] = useState("قل لي عمرك والمجال الذي تحبه، وسأختصر لك الخيارات.");
   const [botResults, setBotResults] = useState<LearningOpportunity[]>([]);
+  const [clock, setClock] = useState(() => Date.now());
   const catalogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem("mirsad-theme");
-    const next = saved === "dark" || (!saved && matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
-    setTheme(next);
-    document.documentElement.dataset.theme = next;
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  }, [theme]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -157,26 +177,28 @@ export default function KuwaitCoursesApp() {
       }
     };
     void refresh();
+    const pollingTimer = window.setInterval(() => void refresh(), 10 * 60_000);
     const channel = client
       .channel("learning-opportunities-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "learning_opportunities" }, () => void refresh())
       .subscribe();
     return () => {
       active = false;
+      window.clearInterval(pollingTimer);
       void client.removeChannel(channel);
     };
   }, []);
 
-  const governors = useMemo(() => ["الكل", ...Array.from(new Set(opportunities.map((item) => item.governorate)))], [opportunities]);
+  const activeOpportunities = useMemo(() => opportunities.filter((item) => isOpportunityActive(item, clock)), [clock, opportunities]);
+  const governors = useMemo(() => ["الكل", ...Array.from(new Set(activeOpportunities.map((item) => item.governorate)))], [activeOpportunities]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return opportunities
+    return activeOpportunities
       .filter((item) => category === "الكل" || item.category === category)
       .filter((item) => kind === "all" || item.kind === kind)
       .filter((item) => mode === "all" || item.mode === mode)
       .filter((item) => governorate === "الكل" || item.governorate === governorate)
-      .filter((item) => includeClosed || item.status !== "closed")
       .filter((item) => ageMatches(item, age))
       .filter((item) => !needle || [item.title, item.titleEn, item.description, item.organizer, item.category, item.subcategory, ...item.tags].join(" ").toLowerCase().includes(needle))
       .sort((a, b) => {
@@ -184,7 +206,7 @@ export default function KuwaitCoursesApp() {
         if (sort === "title") return a.title.localeCompare(b.title, "ar");
         return Number(b.featured) - Number(a.featured);
       });
-  }, [age, category, governorate, includeClosed, kind, mode, opportunities, query, sort]);
+  }, [activeOpportunities, age, category, governorate, kind, mode, query, sort]);
 
   useEffect(() => {
     const context = document.modelContext;
@@ -221,8 +243,8 @@ export default function KuwaitCoursesApp() {
     return () => lifecycle.abort();
   }, []);
 
-  const featured = opportunities.filter((item) => item.featured).slice(0, 3);
-  const activeFilterCount = [category !== "الكل", kind !== "all", mode !== "all", age !== null, governorate !== "الكل", includeClosed].filter(Boolean).length;
+  const featured = activeOpportunities.filter((item) => item.featured).slice(0, 3);
+  const activeFilterCount = [category !== "الكل", kind !== "all", mode !== "all", age !== null, governorate !== "الكل"].filter(Boolean).length;
 
   function setSiteTheme(next: "light" | "dark") {
     setTheme(next);
@@ -238,7 +260,6 @@ export default function KuwaitCoursesApp() {
     setMode("all");
     setAge(null);
     setGovernorate("الكل");
-    setIncludeClosed(false);
   }
 
   function askBot(text: string) {
@@ -260,11 +281,11 @@ export default function KuwaitCoursesApp() {
     if (/حضوري/.test(prompt)) nextMode = "in_person";
     const foundAge = prompt.match(/\d{1,2}/)?.[0];
     if (foundAge) nextAge = Math.min(65, Math.max(6, Number(foundAge)));
-    const matches = opportunities.filter((item) =>
+    const matches = activeOpportunities.filter((item) =>
       (nextCategory === "الكل" || item.category === nextCategory) &&
       (nextKind === "all" || item.kind === nextKind) &&
       (nextMode === "all" || item.mode === nextMode) &&
-      ageMatches(item, nextAge) && item.status !== "closed",
+      ageMatches(item, nextAge),
     ).slice(0, 3);
     setCategory(nextCategory);
     setKind(nextKind);
@@ -292,7 +313,7 @@ export default function KuwaitCoursesApp() {
           <a href="#sources">المصادر</a>
         </nav>
         <div className="header-actions">
-          <span className={`sync-state ${dataMode}`}><i />{dataMode === "live" ? "متزامن مع Supabase" : dataMode === "connecting" ? "جاري التحديث" : "بيانات موثّقة"}</span>
+          <span className={`sync-state ${dataMode}`}><i />{dataMode === "live" ? "مزامنة فورية" : dataMode === "connecting" ? "فحص التحديثات" : "جاهز للمزامنة"}</span>
           <button className="theme-toggle" type="button" aria-label={theme === "light" ? "تفعيل الوضع الداكن" : "تفعيل الوضع الفاتح"} onClick={() => setSiteTheme(theme === "light" ? "dark" : "light")}>
             <span>{theme === "light" ? "☾" : "☀"}</span>
           </button>
@@ -302,9 +323,9 @@ export default function KuwaitCoursesApp() {
       <section className="discovery-hero" id="top">
         <div className="hero-grid" aria-hidden="true" />
         <div className="hero-content">
-          <p className="kicker"><span>KUWAIT LEARNING INDEX</span> / 2026</p>
-          <h1>كل فرصة تعلّم في الكويت،<br /><em>في مكان واحد.</em></h1>
-          <p className="hero-copy">دورات، ورش ومعسكرات من مصادرها الأصلية. ابحث بالعمر أو المجال أو المكان، ثم انتقل مباشرة إلى التسجيل الرسمي.</p>
+          <p className="kicker"><span>مِرصاد يتابع الجديد</span> · على مدار الساعة</p>
+          <h1>تعلّم مهارات المستقبل<br /><em>من فرص الكويت.</em></h1>
+          <p className="hero-copy">كل الدورات والورش والمعسكرات في واجهة واحدة. فلتر بالعمر أو المجال أو المكان، وسجّل من الرابط الرسمي مباشرة.</p>
           <div className="hero-search" role="search">
             <span className="search-icon">⌕</span>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ابحث عن روبوتات، إسعافات، تصميم…" aria-label="البحث في الدورات والورش" />
@@ -312,26 +333,22 @@ export default function KuwaitCoursesApp() {
             <button className="search-submit" type="button" onClick={() => catalogRef.current?.scrollIntoView({ behavior: "smooth" })}>ابحث</button>
           </div>
           <div className="hero-notes">
-            <span><b>{opportunities.length}</b> فرصة في النسخة الحالية</span>
-            <span><b>{new Set(opportunities.map((item) => item.category)).size}</b> مجالات</span>
-            <span><b>مصدر</b> لكل معلومة</span>
+            <span><b>{activeOpportunities.length}</b> فرصة متاحة الآن</span>
+            <span><b>{new Set(activeOpportunities.map((item) => item.category)).size}</b> مجالات</span>
+            <span><b>تلقائي</b> إخفاء التسجيل المنتهي</span>
           </div>
         </div>
         <aside className="bot-preview">
+          <img src={assetPath("/courses-tech.png")} alt="متعلمون في مختبر تقني" />
           <div className="bot-orbit"><i /><i /><span>✦</span></div>
-          <div>
-            <small>مُرشد مِرصاد</small>
-            <h2>مو عارف شتختار؟</h2>
-            <p>اكتب عمرك واهتمامك وأنا أرتّب لك الأنسب من الدليل.</p>
-          </div>
-          <button type="button" onClick={() => setBotOpen(true)}>اسأل المرشد <span>↗</span></button>
+          <div className="bot-card-copy"><div><small>مُرشد مِرصاد</small><h2>شنو يناسبك؟</h2><p>اكتب عمرك واهتمامك، وأنا أرتّب لك الفرص المتاحة الآن.</p></div><button type="button" onClick={() => setBotOpen(true)}>اسأل المرشد <span>←</span></button></div>
         </aside>
       </section>
 
       <section className="category-strip" aria-label="مجالات التعلّم">
         {categories.slice(1).map((item) => {
           const meta = categoryMeta[item];
-          const count = opportunities.filter((opportunity) => opportunity.category === item).length;
+          const count = activeOpportunities.filter((opportunity) => opportunity.category === item).length;
           return <button type="button" key={item} className={category === item ? "active" : ""} onClick={() => { setCategory(item); catalogRef.current?.scrollIntoView({ behavior: "smooth" }); }}>
             <span className="category-icon">{meta.icon}</span>
             <span><small>{meta.code} · {count.toLocaleString("ar-KW")}</small><b>{item}</b><em>{meta.blurb}</em></span>
@@ -395,7 +412,7 @@ export default function KuwaitCoursesApp() {
               <legend>المحافظة</legend>
               <select value={governorate} onChange={(event) => setGovernorate(event.target.value)}>{governors.map((item) => <option key={item}>{item}</option>)}</select>
             </fieldset>
-            <label className="closed-toggle"><input type="checkbox" checked={includeClosed} onChange={(event) => setIncludeClosed(event.target.checked)} /><span /><b>إظهار التسجيل المغلق</b></label>
+            <p className="auto-filter-note"><i /> التسجيل المنتهي يختفي تلقائيًا من النتائج.</p>
             <button className="apply-mobile" type="button" onClick={() => setFiltersOpen(false)}>عرض {filtered.length.toLocaleString("ar-KW")} نتيجة</button>
           </aside>
           {filtersOpen && <button className="filter-backdrop" type="button" aria-label="إغلاق الفلاتر" onClick={() => setFiltersOpen(false)} />}
@@ -444,7 +461,7 @@ export default function KuwaitCoursesApp() {
         <div className="source-steps">
           <article><span>01</span><h3>نجمع</h3><p>من صفحات الجهات التدريبية وروابط التسجيل الرسمية.</p></article>
           <article><span>02</span><h3>نراجع</h3><p>نثبت الوصف والعمر والمكان، ونترك غير المنشور «غير محدد».</p></article>
-          <article><span>03</span><h3>نحدّث</h3><p>Supabase يرسل أي تعديل للواجهة مباشرة دون إعادة نشر الموقع.</p></article>
+          <article><span>03</span><h3>نحدّث</h3><p>بوت GitHub يفحص المصادر كل 30 دقيقة، وSupabase يرسل التغيير للواجهة فورًا.</p></article>
         </div>
         <p className="source-note">هذه نسخة تأسيسية للدليل وليست حصرًا كاملًا لكل الجهات بعد. تحقق دائمًا من صفحة المصدر قبل الدفع أو الحضور.</p>
       </section>

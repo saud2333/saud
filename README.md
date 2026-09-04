@@ -16,9 +16,27 @@ npm run dev
 1. افتح SQL Editor في Supabase.
 2. شغّل `supabase/migrations/0001_civilkuwait_platform.sql` إذا لم يكن مطبقًا مسبقًا.
 3. شغّل `supabase/migrations/0002_mirsad_learning_opportunities.sql`.
-4. أضف أو حدّث السجلات من لوحة Supabase؛ ستظهر التعديلات في الموقع مباشرة عند تفعيل Realtime.
+4. شغّل `supabase/migrations/0003_mirsad_automatic_sync.sql` لإضافة موعد إغلاق التسجيل وقاعدة الأرشفة التلقائية.
+5. أضف أو حدّث السجلات من لوحة Supabase؛ ستظهر التعديلات في الموقع مباشرة عند تفعيل Realtime.
 
 سياسات RLS تسمح للمتصفح بقراءة السجلات المنشورة فقط. لا توجد سياسة كتابة عامة؛ التحديث المجدول يجب أن يتم من GitHub Actions أو خدمة موثوقة تحتفظ بالمفتاح السري في Secrets.
+
+## بوت التحديث التلقائي
+
+المهمة `.github/workflows/sync-opportunities.yml` تعمل كل 30 دقيقة، وتستخرج الفرص من البيانات المنظمة `JSON-LD` والروابط التعليمية في المصادر الرسمية. تضيف السجلات الجديدة إلى Supabase، وتخفي أي سجل تجاوز `registration_ends_at` (أو `ends_at` عند غياب موعد مستقل للتسجيل). فشل مصدر واحد لا يمنع بقية المصادر من التحديث.
+
+أضف السرّين التاليين في **GitHub → Settings → Secrets and variables → Actions**:
+
+- `SUPABASE_URL`: رابط مشروع Supabase.
+- `SUPABASE_SERVICE_ROLE_KEY`: مفتاح الخادم؛ لا يوضع أبدًا في متغيرات `NEXT_PUBLIC_*` أو داخل المستودع.
+
+يمكن تشغيل البوت يدويًا من تبويب Actions أو محليًا في بيئة آمنة:
+
+```bash
+npm run sync:opportunities
+```
+
+إضافة جهة جديدة تتم بإضافة رابطها الرسمي إلى `defaultSources` في `scripts/sync-opportunities.mjs`. عندما تنشر الجهة موعد انتهاء التسجيل في بياناتها المنظمة، يلتقطه البوت تلقائيًا؛ وإذا لم تنشره، تبقى الحالة «تحقّق من التوفر» بدل اختراع تاريخ.
 
 ## GitHub Pages
 
