@@ -135,17 +135,20 @@ export default function KuwaitCoursesApp() {
   const [sort, setSort] = useState<SortMode>("featured");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selected, setSelected] = useState<LearningOpportunity | null>(null);
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof window === "undefined") return "light";
-    const saved = window.localStorage.getItem("mirsad-theme");
-    return saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
-  });
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [botOpen, setBotOpen] = useState(false);
   const [botText, setBotText] = useState("");
   const [botReply, setBotReply] = useState("قل لي عمرك والمجال الذي تحبه، وسأختصر لك الخيارات.");
   const [botResults, setBotResults] = useState<LearningOpportunity[]>([]);
   const [clock, setClock] = useState(() => Date.now());
   const catalogRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("mirsad-theme");
+    const preferred = saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+    const timer = window.setTimeout(() => setTheme(preferred), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
