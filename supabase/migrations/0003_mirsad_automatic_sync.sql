@@ -68,3 +68,14 @@ revoke all on function public.archive_expired_learning_opportunities() from publ
 comment on column public.learning_opportunities.registration_ends_at is
   'The official registration deadline. The trigger hides the opportunity after this instant.';
 
+insert into public.learning_sources (name, website_url, feed_url, parser_key, is_active)
+values
+  ('مجلس الكويت للمباني الخضراء — KGBC', 'https://www.kuwaitgbc.com/', 'https://www.kuwaitgbc.com/events', 'auto', true),
+  ('مؤسسة الكويت للتقدم العلمي — KFAS', 'https://www.kfas.org.kw/', 'https://apply.kfas.org.kw/FormDetails/SubServices?Id=54043757-b3f6-f011-8406-70a8a51d5041', 'auto', true),
+  ('معهد الكويت للأبحاث العلمية — KISR', 'https://www.kisr.edu.kw/', 'https://www.kisr.edu.kw/ar/careers-training/training-courses/', 'auto', true),
+  ('مركز صباح الأحمد للموهبة والإبداع — SACGC', 'https://sacgc.org/', 'https://sacgc.org/en/', 'auto', true)
+on conflict (website_url) do update set
+  name = excluded.name,
+  feed_url = excluded.feed_url,
+  parser_key = excluded.parser_key,
+  is_active = true;

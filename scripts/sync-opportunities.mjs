@@ -5,6 +5,39 @@ import { createClient } from "@supabase/supabase-js";
 
 export const defaultSources = [
   {
+    key: "kgbc",
+    name: "مجلس الكويت للمباني الخضراء — KGBC",
+    websiteUrl: "https://www.kuwaitgbc.com/",
+    feedUrl: "https://www.kuwaitgbc.com/events",
+  },
+  {
+    key: "kfas",
+    name: "مؤسسة الكويت للتقدم العلمي — KFAS",
+    websiteUrl: "https://www.kfas.org.kw/",
+    feedUrl: "https://apply.kfas.org.kw/FormDetails/SubServices?Id=54043757-b3f6-f011-8406-70a8a51d5041",
+    feedUrls: [
+      "https://apply.kfas.org.kw/FormDetails/SubServices?Id=54043757-b3f6-f011-8406-70a8a51d5041",
+      "https://apply.kfas.org.kw/",
+    ],
+  },
+  {
+    key: "kisr",
+    name: "معهد الكويت للأبحاث العلمية — KISR",
+    websiteUrl: "https://www.kisr.edu.kw/",
+    feedUrl: "https://www.kisr.edu.kw/ar/careers-training/training-courses/",
+    feedUrls: [
+      "https://www.kisr.edu.kw/ar/careers-training/training-courses/",
+      "https://www.kisr.edu.kw/ar/careers-training/student-programs/",
+    ],
+  },
+  {
+    key: "sacgc",
+    name: "مركز صباح الأحمد للموهبة والإبداع — SACGC",
+    websiteUrl: "https://sacgc.org/",
+    feedUrl: "https://sacgc.org/en/",
+    feedUrls: ["https://sacgc.org/en/", "https://tcbclubs.sacgc.org/"],
+  },
+  {
     key: "ku-engineering",
     name: "جامعة الكويت — كلية الهندسة والبترول",
     websiteUrl: "https://engineering.ku.edu.kw/",
@@ -20,6 +53,7 @@ export const defaultSources = [
 
 const learningWords = /دور(?:ة|ات)|ورش(?:ة|ات)|معسكر|برنامج\s+تدريب|تدريب|course|workshop|bootcamp|training|robot|latex|solar|energy|data|engineering/i;
 const ignoredLabels = /^(الرئيسية|اتصل بنا|تواصل معنا|المزيد|اقرأ المزيد|login|home|menu|next|previous)$/i;
+const actionLabels = /^(register now|apply now|apply|read more|view courses|للتسجيل|سجل الآن|قدّم الآن)$/i;
 
 function decodeEntities(value) {
   return value
@@ -99,6 +133,15 @@ function safeIso(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
+function parseDateRange(value) {
+  const match = String(value).match(/(\d{1,2})(?:\s*[-–]\s*(\d{1,2}))?\s*[\/]\s*(\d{1,2})\s*[\/]\s*(20\d{2})/);
+  if (!match) return { startsAt: null, endsAt: null };
+  const [, startDay, endDay = startDay, month, year] = match;
+  const startsAt = new Date(`${year}-${month.padStart(2, "0")}-${startDay.padStart(2, "0")}T00:00:00+03:00`).toISOString();
+  const endsAt = new Date(`${year}-${month.padStart(2, "0")}-${endDay.padStart(2, "0")}T23:59:59+03:00`).toISOString();
+  return { startsAt, endsAt };
+}
+
 function imageFor(category) {
   if (category === "التقنية والذكاء الاصطناعي") return "/courses-tech.png";
   if (category === "الهندسة والطاقة") return "/courses-engineering.png";
@@ -164,8 +207,14 @@ function parseLearningLinks(html, source, checkedAt) {
   const rows = [];
   const pattern = /<a\s+[^>]*href\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi;
   for (const match of html.matchAll(pattern)) {
-    const title = stripHtml(match[3]);
+    let title = stripHtml(match[3]);
     const href = absoluteUrl(decodeEntities(match[2]), source.feedUrl);
+    if (actionLabels.test(title)) {
+      const prefix = html.slice(Math.max(0, (match.index ?? 0) - 1600), match.index ?? 0);
+      const headings = [...prefix.matchAll(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/gi)];
+      const contextualTitle = stripHtml(headings.at(-1)?.[1] ?? "");
+      if (contextualTitle) title = contextualTitle;
+    }
     const evidence = `${title} ${href}`;
     if (title.length < 4 || title.length > 180 || ignoredLabels.test(title) || !learningWords.test(evidence) || !/^https?:/i.test(href)) continue;
     const [category, subcategory] = classify(evidence);
@@ -183,8 +232,37 @@ function parseLearningLinks(html, source, checkedAt) {
   return rows;
 }
 
+function parseCourseTables(html, source, checkedAt) {
+  const rows = [];
+  for (const rowMatch of html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const rowHtml = rowMatch[1];
+    const cells = [...rowHtml.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((match) => stripHtml(match[1]));
+    const dateCell = cells.find((cell) => /\d{1,2}(?:\s*[-–]\s*\d{1,2})?\s*\/\s*\d{1,2}\s*\/\s*20\d{2}/.test(cell));
+    if (!dateCell) continue;
+    const dateIndex = cells.indexOf(dateCell);
+    const title = cells.slice(0, dateIndex).findLast((cell) => cell.length >= 4 && !/^\d+$/.test(cell));
+    if (!title) continue;
+    const rowLinks = [...rowHtml.matchAll(/href\s*=\s*(["'])(.*?)\1/gi)].map((match) => absoluteUrl(decodeEntities(match[2]), source.feedUrl));
+    const registrationUrl = rowLinks.find((url) => /^https?:/i.test(url) && !/chrome-extension/i.test(url)) ?? source.feedUrl;
+    const { startsAt, endsAt } = parseDateRange(dateCell);
+    const active = Boolean(startsAt && new Date(startsAt).getTime() > Date.now());
+    const [category, subcategory] = classify(title);
+    rows.push({
+      id: stableId(source.key, source.feedUrl, title), title_ar: title, title_en: null,
+      description_ar: `دورة مدرجة في الخطة التدريبية الرسمية لدى ${source.name}.`, kind: inferKind(title), category, subcategory,
+      organizer: source.name, location: cells[dateIndex + 1] || "الكويت", governorate: "غير محدد", mode: "in_person",
+      min_age: null, max_age: null, age_label: "لم يحدده المنظم", duration_label: "يحدده المنظم", schedule_label: dateCell,
+      starts_at: startsAt, ends_at: endsAt, registration_ends_at: startsAt, price_kwd: null,
+      status: active ? "open" : "closed", registration_url: registrationUrl, source_url: source.feedUrl,
+      image_url: imageFor(category), tags: [subcategory], featured: false, is_published: active,
+      source_checked_at: checkedAt, source_fingerprint: fingerprint(source.feedUrl, title), last_seen_at: new Date().toISOString(),
+    });
+  }
+  return rows;
+}
+
 export function parseSourcePage(html, source, checkedAt = new Date().toISOString().slice(0, 10)) {
-  const combined = [...parseJsonLd(html, source, checkedAt), ...parseLearningLinks(html, source, checkedAt)];
+  const combined = [...parseJsonLd(html, source, checkedAt), ...parseCourseTables(html, source, checkedAt), ...parseLearningLinks(html, source, checkedAt)];
   return [...new Map(combined.map((row) => [row.source_fingerprint, row])).values()];
 }
 
@@ -195,15 +273,21 @@ export function isExpired(row, now = Date.now()) {
 
 async function syncSource(client, source) {
   const startedAt = new Date().toISOString();
-  const response = await fetch(source.feedUrl, {
-    headers: { "user-agent": "MirsadCourseBot/1.0 (+https://github.com/saud2333/saud)" },
-    signal: AbortSignal.timeout(25_000),
-  });
-  if (!response.ok) throw new Error(`${source.name}: HTTP ${response.status}`);
-  const rows = parseSourcePage(await response.text(), source);
+  const sourcePages = await Promise.allSettled((source.feedUrls ?? [source.feedUrl]).map(async (feedUrl) => {
+    const response = await fetch(feedUrl, {
+      headers: { "user-agent": "MirsadCourseBot/1.0 (+https://github.com/saud2333/saud)" },
+      signal: AbortSignal.timeout(25_000),
+    });
+    if (!response.ok) throw new Error(`${feedUrl}: HTTP ${response.status}`);
+    return parseSourcePage(await response.text(), { ...source, feedUrl });
+  }));
+  const successfulPages = sourcePages.filter((result) => result.status === "fulfilled");
+  if (!successfulPages.length) throw new Error(`${source.name}: all official pages failed`);
+  const rows = [...new Map(successfulPages.flatMap((result) => result.value).map((row) => [row.source_fingerprint, row])).values()];
   const { data: sourceRow, error: sourceError } = await client.from("learning_sources").upsert({
     name: source.name, website_url: source.websiteUrl, feed_url: source.feedUrl, parser_key: "auto", is_active: true,
-    last_synced_at: startedAt, last_sync_status: "ok", last_sync_message: `${rows.length} opportunities found`,
+    last_synced_at: startedAt, last_sync_status: successfulPages.length === sourcePages.length ? "ok" : "partial",
+    last_sync_message: `${rows.length} opportunities found across ${successfulPages.length}/${sourcePages.length} pages`,
   }, { onConflict: "website_url" }).select("id").single();
   if (sourceError) throw sourceError;
   if (rows.length) {
@@ -235,4 +319,3 @@ export async function runSync() {
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
 if (invokedPath && fileURLToPath(import.meta.url) === invokedPath) await runSync();
-

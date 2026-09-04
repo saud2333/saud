@@ -115,6 +115,15 @@ function checkedLabel(date: string) {
   return Number.isNaN(parsed.getTime()) ? date : new Intl.DateTimeFormat("ar-KW", { day: "numeric", month: "short", year: "numeric" }).format(parsed);
 }
 
+function organizerMark(organizer: string) {
+  if (/KGBC|المباني الخضراء/i.test(organizer)) return "KGBC";
+  if (/KFAS|التقدم العلمي/i.test(organizer)) return "KFAS";
+  if (/KISR|الأبحاث العلمية/i.test(organizer)) return "KISR";
+  if (/SACGC|صباح الأحمد/i.test(organizer)) return "SACGC";
+  if (/جامعة الكويت/.test(organizer)) return "KU";
+  return "KW";
+}
+
 function isOpportunityActive(item: LearningOpportunity, now: number) {
   if (item.status === "closed") return false;
   const deadline = item.registrationEndsAt ?? item.endsAt;
@@ -447,7 +456,7 @@ export default function KuwaitCoursesApp() {
                     <div><dt>المكان</dt><dd>{modeLabels[item.mode]} · {item.location}</dd></div>
                     <div><dt>الرسوم</dt><dd>{priceLabel(item.priceKwd)}</dd></div>
                   </dl>
-                  <div className="course-organizer"><span className="org-monogram">KU</span><span><small>الجهة المنظمة</small><b>{item.organizer}</b></span></div>
+                  <div className="course-organizer"><span className="org-monogram">{organizerMark(item.organizer)}</span><span><small>الجهة المنظمة</small><b>{item.organizer}</b></span></div>
                   <div className="course-actions">
                     <button type="button" onClick={() => setSelected(item)}>التفاصيل</button>
                     <a href={item.registrationUrl} target="_blank" rel="noreferrer">التسجيل الرسمي <span>↗</span></a>
@@ -466,6 +475,7 @@ export default function KuwaitCoursesApp() {
           <article><span>02</span><h3>نراجع</h3><p>نثبت الوصف والعمر والمكان، ونترك غير المنشور «غير محدد».</p></article>
           <article><span>03</span><h3>نحدّث</h3><p>بوت GitHub يفحص المصادر كل 30 دقيقة، وSupabase يرسل التغيير للواجهة فورًا.</p></article>
         </div>
+        <div className="source-badges" aria-label="المصادر الأساسية"><span>KGBC</span><span>KFAS</span><span>KISR</span><span>SACGC</span></div>
         <p className="source-note">هذه نسخة تأسيسية للدليل وليست حصرًا كاملًا لكل الجهات بعد. تحقق دائمًا من صفحة المصدر قبل الدفع أو الحضور.</p>
       </section>
 
