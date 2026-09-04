@@ -1,5 +1,5 @@
-import CivilApp from "./components/CivilAppV2";
+import KuwaitCoursesApp from "./components/KuwaitCoursesApp";
 
 export default function HomePage() {
-  return <CivilApp initialView="home" />;
+  return <KuwaitCoursesApp />;
 }

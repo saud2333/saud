@@ -1,16 +1,13 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import CivilApp from "../app/components/CivilAppV2";
+import KuwaitCoursesApp from "../app/components/KuwaitCoursesApp";
 import "../app/globals.css";
 
 const root = document.getElementById("root");
-if (!root) throw new Error("CivilKuwait root element was not found");
-
-document.documentElement.style.setProperty("--civil-hero-image", "url('/saud/civilkuwait-sustainable-hero.png')");
-document.documentElement.style.setProperty("--civil-engineers-image", "url('/saud/fictional-engineers-grid.png')");
+if (!root) throw new Error("Mirsad root element was not found");
 
 createRoot(root).render(
   <StrictMode>
-    <CivilApp />
+    <KuwaitCoursesApp />
   </StrictMode>,
 );

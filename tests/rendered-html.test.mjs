@@ -5,30 +5,31 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
 
-test("implements the bilingual CivilKuwait product shell", async () => {
-  const [layout, page, app, css] = await Promise.all([
+test("implements the Arabic Mirsad discovery experience", async () => {
+  const [layout, page, app, css, data, migration] = await Promise.all([
     read("app/layout.tsx"),
     read("app/page.tsx"),
-    read("app/components/CivilAppV2.tsx"),
+    read("app/components/KuwaitCoursesApp.tsx"),
     read("app/globals.css"),
+    read("app/data/opportunities.ts"),
+    read("supabase/migrations/0002_mirsad_learning_opportunities.sql"),
   ]);
-  assert.match(layout, /CivilKuwait \| منصة الهندسة المدنية في الكويت/);
+  assert.match(layout, /مِرصاد \| دليل دورات وورش الكويت/);
   assert.match(layout, /lang="ar" dir="rtl"/);
-  assert.match(layout, /\/og\.png/);
-  assert.match(page, /initialView="home"/);
-  assert.match(app, /هندسة مستدامة للكويت/);
-  assert.match(app, /Sustainable engineering for Kuwait/);
-  assert.match(app, /document\.documentElement\.dir/);
-  assert.match(app, /السعر غير متاح/);
-  assert.match(css, /civilkuwait-sustainable-hero\.png/);
-  assert.match(css, /fictional-engineers-grid\.png/);
-  assert.match(app, /mobile-menu-v2/);
-  assert.match(app, /verifiedSuppliers/);
-  assert.doesNotMatch(app, /الاستدامة بالبناء 47/);
-  assert.match(css, /@media \(max-width: 760px\)/);
+  assert.match(page, /KuwaitCoursesApp/);
+  assert.match(app, /كل فرصة تعلّم في الكويت/);
+  assert.match(app, /filter_learning_opportunities/);
+  assert.match(app, /مُرشد مِرصاد/);
+  assert.match(app, /learning-opportunities-live/);
+  assert.match(app, /السعر غير منشور/);
+  assert.match(data, /Service Robotics for Industry/);
+  assert.match(data, /لم يحدده المنظم/);
+  assert.match(migration, /learning_opportunities_public_read/);
+  assert.match(migration, /supabase_realtime/);
+  assert.match(css, /@media \(max-width: 680px\)/);
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /html\[data-theme="dark"\]/);
-  assert.match(layout, /civilkuwait-theme/);
+  assert.match(layout, /mirsad-theme/);
 });
 
 test("includes all primary pages and API surfaces", async () => {
