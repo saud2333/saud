@@ -32,6 +32,9 @@ export type LearningOpportunity = {
   aiReviewStatus?: "pending" | "verified" | "needs_review" | "unavailable";
   aiReviewedAt?: string | null;
   aiReviewNote?: string | null;
+  announcementChannel?: string;
+  officialAccountUrl?: string | null;
+  officialAccountProofUrl?: string | null;
   tags: string[];
 };
 

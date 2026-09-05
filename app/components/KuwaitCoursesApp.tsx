@@ -7,13 +7,12 @@ import { getSupabaseClient } from "../lib/supabase";
 import {
   categories,
   categoryMeta,
-  fallbackOpportunities,
   type LearningOpportunity,
   type OpportunityKind,
   type OpportunityMode,
 } from "../data/opportunities";
 
-type DataMode = "connecting" | "live" | "curated";
+type DataMode = "connecting" | "live" | "unavailable";
 type SortMode = "featured" | "price" | "title";
 
 declare global {
@@ -99,6 +98,9 @@ function fromSupabaseRow(row: Record<string, unknown>): LearningOpportunity {
       : undefined,
     aiReviewedAt: asString(row.ai_reviewed_at) || null,
     aiReviewNote: asString(row.ai_review_note) || null,
+    announcementChannel: asString(row.announcement_channel, "website"),
+    officialAccountUrl: asString(row.official_account_url) || null,
+    officialAccountProofUrl: asString(row.official_account_proof_url) || null,
     tags: Array.isArray(row.tags) ? row.tags.filter((tag): tag is string => typeof tag === "string") : [],
   };
 }
@@ -168,27 +170,27 @@ function officialRegistrationDestination(item: LearningOpportunity) {
 function officialSourceDestination(item: LearningOpportunity) {
   const portal = officialPortalFor(item);
   if (!portal) return "#sources";
+  if (item.officialAccountUrl && item.officialAccountProofUrl && hasOfficialDomain(item.officialAccountProofUrl, portal.domains)) {
+    try {
+      const url = new URL(item.sourceUrl), account = new URL(item.officialAccountUrl);
+      if (url.protocol === "https:" && url.hostname === account.hostname && !url.username && !url.password) {
+        if (item.announcementChannel === "youtube" && url.hostname === "www.youtube.com" && url.pathname === "/watch" && /^[\w-]{11}$/.test(url.searchParams.get("v") ?? "")) return url.href;
+        if (item.announcementChannel === "x" && url.hostname === "x.com" && url.pathname.startsWith(account.pathname + "/status/")) return url.href;
+        if (item.announcementChannel === "instagram" && ["www.instagram.com", "instagram.com"].includes(url.hostname) && /^\/(p|reel)\/[\w-]+\/?$/.test(url.pathname)) return url.href;
+      }
+    } catch { /* Unproven social URLs fall back to the official website. */ }
+  }
   return hasOfficialDomain(item.sourceUrl, portal.domains) ? item.sourceUrl : portal.landing;
 }
 
 function isOpportunityActive(item: LearningOpportunity, now: number) {
-  if (item.status === "closed") return false;
-  const deadline = item.registrationEndsAt ?? item.endsAt;
-  if (!deadline) return true;
-  const timestamp = new Date(deadline).getTime();
-  return Number.isNaN(timestamp) || timestamp > now;
-}
-
-function mergeWithCurated(liveItems: LearningOpportunity[]) {
-  const seen = new Set(liveItems.map((item) => (item.organizer + "#" + item.title).toLowerCase()));
-  return [
-    ...liveItems,
-    ...fallbackOpportunities.filter((item) => !seen.has((item.organizer + "#" + item.title).toLowerCase())),
-  ];
+  return item.status === "open" && item.aiReviewStatus === "verified"
+    && Boolean(item.registrationEndsAt && Date.parse(item.registrationEndsAt) > now)
+    && Boolean(item.startsAt && Date.parse(item.startsAt) > now);
 }
 
 export default function KuwaitCoursesApp() {
-  const [opportunities, setOpportunities] = useState(fallbackOpportunities);
+  const [opportunities, setOpportunities] = useState<LearningOpportunity[]>([]);
   const [dataMode, setDataMode] = useState<DataMode>("connecting");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("الكل");
@@ -200,7 +202,7 @@ export default function KuwaitCoursesApp() {
   const [governorate, setGovernorate] = useState("الكل");
   const [sort, setSort] = useState<SortMode>("featured");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [selected, setSelected] = useState<LearningOpportunity | null>(null);
+  const [selection, setSelected] = useState<LearningOpportunity | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [botOpen, setBotOpen] = useState(false);
   const [botText, setBotText] = useState("");
@@ -230,24 +232,33 @@ export default function KuwaitCoursesApp() {
     let active = true;
     const client = getSupabaseClient();
     const refresh = async () => {
+      try {
       const { data, error } = await client
         .from("learning_opportunities")
         .select("*")
         .eq("is_published", true)
+        .eq("ai_review_status", "verified")
+        .eq("publication_ready", true)
+        .gt("registration_ends_at", new Date().toISOString())
+        .gt("last_seen_at", new Date(Date.now() - 24 * 60 * 60_000).toISOString())
         .order("featured", { ascending: false })
         .order("source_checked_at", { ascending: false })
         .limit(200);
       if (!active) return;
-      if (!error && data?.length) {
-        const liveItems = data.map((row) => fromSupabaseRow(row as Record<string, unknown>));
-        setOpportunities(mergeWithCurated(liveItems));
+      if (!error) {
+        const liveItems = (data ?? []).map((row) => fromSupabaseRow(row as Record<string, unknown>));
+        setOpportunities(liveItems);
         setDataMode("live");
       } else {
-        setDataMode("curated");
+        setOpportunities([]);
+        setDataMode("unavailable");
+      }
+      } catch {
+        if (active) { setOpportunities([]); setDataMode("unavailable"); }
       }
     };
     void refresh();
-    const pollingTimer = window.setInterval(() => void refresh(), 10 * 60_000);
+    const pollingTimer = window.setInterval(() => void refresh(), 60_000);
     const channel = client
       .channel("learning-opportunities-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "learning_opportunities" }, () => void refresh())
@@ -260,6 +271,8 @@ export default function KuwaitCoursesApp() {
   }, []);
 
   const activeOpportunities = useMemo(() => opportunities.filter((item) => isOpportunityActive(item, clock)), [clock, opportunities]);
+  const selected = activeOpportunities.find((item) => item.id === selection?.id) ?? null;
+  const currentBotResults = botResults.flatMap((result) => activeOpportunities.filter((item) => item.id === result.id));
   const governors = useMemo(() => ["الكل", ...Array.from(new Set(activeOpportunities.map((item) => item.governorate)))], [activeOpportunities]);
   const subcategories = useMemo(() => {
     const candidates = category === "الكل" ? activeOpportunities : activeOpportunities.filter((item) => item.category === category);
@@ -407,7 +420,7 @@ export default function KuwaitCoursesApp() {
           <a href="#sources">المصادر</a>
         </nav>
         <div className="header-actions">
-          <span className={`sync-state ${dataMode}`}><i />{dataMode === "live" ? "مزامنة فورية" : dataMode === "connecting" ? "فحص التحديثات" : "جاهز للمزامنة"}</span>
+          <span className={`sync-state ${dataMode}`}><i />{dataMode === "live" ? "متصل بالدليل" : dataMode === "connecting" ? "فحص التحديثات" : "تعذّر تحديث الدليل"}</span>
           <button className="theme-toggle" type="button" aria-label={theme === "light" ? "تفعيل الوضع الداكن" : "تفعيل الوضع الفاتح"} onClick={() => setSiteTheme(theme === "light" ? "dark" : "light")}>
             <span>{theme === "light" ? "☾" : "☀"}</span>
           </button>
@@ -417,9 +430,9 @@ export default function KuwaitCoursesApp() {
       <section className="discovery-hero" id="top">
         <div className="hero-grid" aria-hidden="true" />
         <div className="hero-content">
-          <p className="kicker"><span>مِرصاد يتابع الجديد</span> · على مدار الساعة</p>
+          <p className="kicker"><span>فرص موثّقة من الجهات الرسمية</span></p>
           <h1>تعلّم مهارات المستقبل<br /><em>من فرص الكويت.</em></h1>
-          <p className="hero-copy">كل الدورات والورش والمعسكرات في واجهة واحدة. فلتر بالعمر أو المجال أو المكان، وسجّل من الرابط الرسمي مباشرة.</p>
+          <p className="hero-copy">الدورات والورش المكتملة معلوماتها والمفتوح تسجيلها. ابحث بالعمر أو المجال أو المكان، وسجّل من موقع الجهة الرسمي.</p>
           <div className="hero-search" role="search">
             <span className="search-icon">⌕</span>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ابحث عن روبوتات، إسعافات، تصميم…" aria-label="البحث في الدورات والورش" />
@@ -451,7 +464,7 @@ export default function KuwaitCoursesApp() {
         })}
       </section>
 
-      <section className="featured-section" id="featured">
+      {featured.length > 0 && <section className="featured-section" id="featured">
         <div className="section-title">
           <div><p className="section-index">01 / مختارات المحرر</p><h2>الأبرز الآن</h2></div>
           <p>فرص متنوعة من الخطة التدريبية الرسمية، اخترناها لسهولة المقارنة بين المجالات.</p>
@@ -469,7 +482,7 @@ export default function KuwaitCoursesApp() {
             </div>
           </article>)}
         </div>
-      </section>
+      </section>}
 
       <section className="catalog-section" id="catalog" ref={catalogRef}>
         <div className="section-title catalog-title">
@@ -581,7 +594,7 @@ export default function KuwaitCoursesApp() {
                   </div>
                 </div>
               </article>)}
-            </div> : <div className="empty-state"><span>⌁</span><h3>ما لقينا فرصة بهذه المواصفات</h3><p>وسّع العمر أو المجال، أو امسح الفلاتر وشوف الدليل كاملًا.</p><button type="button" onClick={clearFilters}>مسح الفلاتر</button></div>}
+            </div> : <div className="empty-state" role="status"><span>⌁</span><h3>{dataMode === "connecting" ? "جارٍ التحقق من الفرص" : dataMode === "unavailable" ? "تعذّر التحقق من الدورات حاليًا" : "لا توجد فرص مؤكدة ومكتملة حاليًا"}</h3><p>{dataMode === "unavailable" ? "سنحاول الاتصال مجددًا تلقائيًا. لا نعرض بيانات قديمة أو غير مؤكدة أثناء التعذّر." : "تظهر الدورة أو الورشة هنا بعد إعلانها رسميًا واكتمال معلوماتها ومراجعتها، ما دام التسجيل متاحًا."}</p>{(activeFilterCount > 0 || query) && <button type="button" onClick={clearFilters}>مسح الفلاتر</button>}</div>}
           </div>
         </div>
       </section>
@@ -589,12 +602,12 @@ export default function KuwaitCoursesApp() {
       <section className="source-section" id="sources">
         <div><p className="section-index">03 / كيف نتحقق؟</p><h2>المعلومة تبدأ من المصدر.</h2></div>
         <div className="source-steps">
-          <article><span>01</span><h3>نجمع</h3><p>من صفحات الجهات التدريبية، ونفتح التسجيل داخل نطاق الجهة نفسها فقط.</p></article>
-          <article><span>02</span><h3>نراجع بالذكاء الاصطناعي</h3><p>نقارن العمر والموعد والرابط بنص الصفحة الرسمية، ونحجز أي سجل مشكوك فيه للمراجعة.</p></article>
-          <article><span>03</span><h3>نحدّث</h3><p>بوت GitHub يفحص المصادر كل 30 دقيقة، وSupabase يرسل التغيير للواجهة فورًا.</p></article>
+          <article><span>01</span><h3>الإعلان الرسمي</h3><p>نعتمد موقع الجهة وحساباتها التي ثبتت رسميتها، مع رابط الإعلان الأصلي.</p></article>
+          <article><span>02</span><h3>اكتمال ومراجعة</h3><p>نراجع الوصف والعمر والموعد والمكان والرسوم والرابط مقابل الإعلان. النقص أو التعارض يوقف النشر.</p></article>
+          <article><span>03</span><h3>تسجيل متاح</h3><p>تظهر الفرص المكتملة فقط، وتختفي بعد إغلاق التسجيل أو بدء البرنامج.</p></article>
         </div>
         <div className="source-badges" aria-label="المصادر الأساسية"><span>KGBC</span><span>KFAS</span><span>KISR</span><span>SACGC</span></div>
-        <p className="source-note">مراجعة الذكاء الاصطناعي طبقة تحقق إضافية وليست بديلًا عن المصدر. لا ننشر تصحيحًا مستنتجًا؛ السجل غير المدعوم يُحجز للمراجعة.</p>
+        <p className="source-note">إذا لم تعلن الجهة فرصة مكتملة، لا نضيف لها بطاقات. مراجعة الذكاء الاصطناعي تدعم التحقق ولا تضمن خلو المصدر من الخطأ؛ راجع الإعلان الرسمي قبل التسجيل.</p>
       </section>
 
       <footer>
@@ -611,7 +624,7 @@ export default function KuwaitCoursesApp() {
           <header><div className="mini-bot">✦</div><div><b>مُرشد مِرصاد</b><small><i /> جاهز للبحث</small></div><button type="button" onClick={() => setBotOpen(false)}>×</button></header>
           <div className="chat-body">
             <p className="bot-message">{botReply}</p>
-            {botResults.map((item) => <button className="bot-result" type="button" key={item.id} onClick={() => { setSelected(item); setBotOpen(false); }}><span><small>{item.category}</small><b>{item.title}</b></span><i>←</i></button>)}
+            {currentBotResults.map((item) => <button className="bot-result" type="button" key={item.id} onClick={() => { setSelected(item); setBotOpen(false); }}><span><small>{item.category}</small><b>{item.title}</b></span><i>←</i></button>)}
             <div className="quick-prompts">
               {["عمري 16 وأحب التقنية", "أبي ورشة مهارات", "دورات هندسية حضورية"].map((prompt) => <button type="button" key={prompt} onClick={() => askBot(prompt)}>{prompt}</button>)}
             </div>

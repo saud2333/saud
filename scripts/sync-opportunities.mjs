@@ -3,6 +3,9 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { DEFAULT_REVIEW_MODEL, reviewOpportunitiesWithAI } from "./ai-review.mjs";
+import { documentHash, extractAnnouncements } from "./announcement-extraction.mjs";
+import { collectSocialDocuments, fetchOfficialPage, withImageHashes } from "./official-documents.mjs";
+import { gatePublication, officialTimestamp, officialUrl, publicationIssues, REVIEW_POLICY_VERSION } from "./publication-policy.mjs";
 
 export const defaultSources = [
   {
@@ -330,92 +333,137 @@ export function applyReviewResults(rows, reviewedRows, existingRows = []) {
   });
 }
 
-async function syncSource(client, source) {
+export async function syncSource(client, source, { env = process.env, fetchImpl = fetch, extract = extractAnnouncements, review = reviewOpportunitiesWithAI } = {}) {
   const startedAt = new Date().toISOString();
-  const sourcePages = await Promise.allSettled((source.feedUrls ?? [source.feedUrl]).map(async (feedUrl) => {
-    const response = await fetch(feedUrl, {
-      headers: { "user-agent": "MirsadCourseBot/1.0 (+https://github.com/saud2333/saud)" },
-      signal: AbortSignal.timeout(25_000),
-    });
-    if (!response.ok) throw new Error(`${feedUrl}: HTTP ${response.status}`);
-    const html = await response.text();
-    return {
-      rows: parseSourcePage(html, { ...source, feedUrl }),
-      evidence: stripHtml(html).slice(0, 12_000),
-      feedUrl,
-    };
-  }));
-  const successfulPages = sourcePages.filter((result) => result.status === "fulfilled");
-  if (!successfulPages.length) throw new Error(`${source.name}: all official pages failed`);
-  const rows = uniqueRows(successfulPages.flatMap((result) => result.value.rows));
-  const evidence = successfulPages
-    .map((result) => `URL: ${result.value.feedUrl}\n${result.value.evidence}`)
-    .join("\n\n")
-    .slice(0, 30_000);
   const { data: sourceRow, error: sourceError } = await client.from("learning_sources").upsert({
-    name: source.name, website_url: source.websiteUrl, feed_url: source.feedUrl, parser_key: "auto", is_active: true,
-    last_synced_at: startedAt, last_sync_status: successfulPages.length === sourcePages.length ? "ok" : "partial",
-    last_sync_message: `${rows.length} opportunities found across ${successfulPages.length}/${sourcePages.length} pages`,
+    name: source.name, website_url: source.websiteUrl, feed_url: source.feedUrl, parser_key: "evidence_v2", is_active: true,
   }, { onConflict: "website_url" }).select("id").single();
   if (sourceError) throw sourceError;
-
-  const { data: existingRows, error: existingError } = await client
-    .from("learning_opportunities")
-    .select("source_fingerprint,content_hash,ai_review_status")
-    .eq("source_id", sourceRow.id);
-  if (existingError) throw existingError;
-  const existingByFingerprint = new Map((existingRows ?? []).map((row) => [row.source_fingerprint, row]));
-  const changedRows = rows.filter((row) => {
-    const existing = existingByFingerprint.get(row.source_fingerprint);
-    return !existing || existing.content_hash !== row.content_hash || ["pending", "unavailable"].includes(existing.ai_review_status);
+  const { data: cached, error: cacheError } = await client.from("learning_source_documents").select("*").eq("source_id", sourceRow.id);
+  if (cacheError) throw cacheError;
+  const cacheByUrl = new Map((cached ?? []).map((item) => [item.document_url, item]));
+  const channels = [], documents = [];
+  const pages = await Promise.allSettled((source.feedUrls ?? [source.feedUrl]).map((url) => fetchOfficialPage(url, source, fetchImpl)));
+  pages.forEach((result, index) => {
+    channels.push({ channel: "website", url: (source.feedUrls ?? [source.feedUrl])[index], status: result.status === "fulfilled" ? "ok" : "failed" });
+    if (result.status === "fulfilled") documents.push(result.value);
   });
-  const reviewedRows = [];
-  for (let index = 0; index < changedRows.length; index += 12) {
-    const batch = changedRows.slice(index, index + 12);
+  const social = await collectSocialDocuments(source, env, fetchImpl);
+  channels.push(...social.channels); documents.push(...social.documents);
+  // Crawl current official detail links and recheck prior live website pages.
+  // Each run is bounded; cached documents prevent repeated extraction costs.
+  const detailUrls = [...new Set([
+    ...documents.flatMap((document) => [...document.candidates, ...(document.channel !== "website" ? document.links : [])]),
+    ...(cached ?? []).filter((item) => item.channel === "website" && item.rows?.some((row) => row.is_published)).map((item) => item.document_url),
+  ])].filter((url) => officialUrl(url, source) && !documents.some((document) => document.url === url))
+    .sort((a, b) => (Date.parse(cacheByUrl.get(a)?.checked_at) || 0) - (Date.parse(cacheByUrl.get(b)?.checked_at) || 0)).slice(0, 20);
+  const details = await Promise.allSettled(detailUrls.map((url) => fetchOfficialPage(url, source, fetchImpl)));
+  details.forEach((result, index) => {
+    channels.push({ channel: "website_detail", url: detailUrls[index], status: result.status === "fulfilled" ? "ok" : "failed" });
+    if (result.status === "fulfilled") documents.push(result.value);
+  });
+  const groupedDocuments = new Map();
+  for (const document of documents) {
+    const previous = groupedDocuments.get(document.url);
+    groupedDocuments.set(document.url, { ...document, requestedUrls: [...new Set([...(previous?.requestedUrls ?? []), document.requestedUrl ?? document.url])] });
+  }
+  const uniqueDocuments = [...groupedDocuments.values()]
+    .sort((a, b) => (Date.parse(cacheByUrl.get(a.url)?.checked_at) || 0) - (Date.parse(cacheByUrl.get(b.url)?.checked_at) || 0));
+  const failures = []; let count = 0, published = 0, held = 0;
+  const hideDocument = async (document) => {
+    for (const url of new Set([document.url, ...(document.requestedUrls ?? [])])) {
+      const { error } = await client.from("learning_opportunities").update({ is_published: false, publication_ready: false }).eq("source_id", sourceRow.id).eq("source_url", url);
+      if (error) throw error;
+    }
+  };
+  for (let document of uniqueDocuments) {
+    if (Date.now() - Date.parse(startedAt) > 180_000) {
+      failures.push({ url: document.url, message: "Source time budget reached; remaining documents will be retried next run" });
+      break;
+    }
+    let outputRows;
     try {
-      reviewedRows.push(...await reviewOpportunitiesWithAI({
-        apiKey: process.env.OPENAI_API_KEY,
-        model: process.env.OPENAI_REVIEW_MODEL ?? process.env.OPENAI_MODEL ?? DEFAULT_REVIEW_MODEL,
-        source,
-        evidence,
-        rows: batch,
-      }));
+      document = await withImageHashes(document, source, fetchImpl);
+      const hash = documentHash(document), previous = cacheByUrl.get(document.url);
+      const reusable = previous?.evidence_hash === hash && previous.review_policy_version === REVIEW_POLICY_VERSION
+        && previous.status === "reviewed" && previous.rows.every((row) => row.ai_review_status === "verified")
+        && Date.parse(previous.reviewed_at) > Date.now() - 24 * 60 * 60_000;
+      if (reusable) {
+        outputRows = previous.rows.map((row) => gatePublication(row, source, document));
+      } else {
+        const extracted = await extract({ document, source, apiKey: env.OPENAI_API_KEY, model: env.OPENAI_REVIEW_MODEL || env.OPENAI_MODEL || DEFAULT_REVIEW_MODEL, fetchImpl });
+        const complete = extracted.filter((row) => publicationIssues(row, source, document).length === 0);
+        const reviewed = await review({ rows: complete, source, evidence: JSON.stringify(document), images: document.images, apiKey: env.OPENAI_API_KEY, model: env.OPENAI_REVIEW_MODEL || env.OPENAI_MODEL || DEFAULT_REVIEW_MODEL, fetchImpl });
+        const reviews = new Map(reviewed.map((row) => [row.source_fingerprint, row]));
+        outputRows = extracted.map((row) => gatePublication(reviews.get(row.source_fingerprint) ?? { ...row, ai_review_status: "needs_review", ai_review_note: "الإعلان غير مكتمل أو يحتاج إلى دليل أوضح." }, source, document));
+      }
+      // A still-visible social announcement must not keep a closed/broken
+      // registration page publishable. Recheck its destination every run.
+      for (let index = 0; index < outputRows.length; index++) {
+        const row = outputRows[index];
+        if (!row.is_published) continue;
+        const registrationPage = row.registration_url === document.url ? document
+          : await withImageHashes(await fetchOfficialPage(row.registration_url, source, fetchImpl), source, fetchImpl);
+        const registrationHash = documentHash(registrationPage);
+        const prior = previous?.rows.find((item) => item.source_fingerprint === row.source_fingerprint);
+        if (!reusable || prior?.registration_page_hash !== registrationHash) {
+          const evidence = JSON.stringify({
+            registrationPage: { ...registrationPage, text: registrationPage.text.slice(0, 12_000) },
+            announcement: { ...document, text: document.text.slice(0, 12_000) },
+          });
+          const [checked] = await review({ rows: [row], source, evidence,
+            images: [...new Set([...document.images, ...registrationPage.images])],
+            apiKey: env.OPENAI_API_KEY, model: env.OPENAI_REVIEW_MODEL || env.OPENAI_MODEL || DEFAULT_REVIEW_MODEL, fetchImpl });
+          outputRows[index] = gatePublication({ ...(checked ?? { ...row, ai_review_status: "needs_review" }), registration_page_hash: registrationHash }, source, document);
+        }
+      }
+      // Reconcile this exact successfully reviewed document, even when empty.
+      // Do not infer deletion from a truncated social timeline or a failed fetch.
+      await hideDocument(document);
+      if (outputRows.length) {
+        const records = outputRows.map((row) => databaseRow(row, sourceRow.id, startedAt));
+        const { error } = await client.from("learning_opportunities").upsert(records, { onConflict: "source_fingerprint" });
+        if (error) throw error;
+      }
+      const { error: documentError } = await client.from("learning_source_documents").upsert({
+        source_id: sourceRow.id, document_url: document.url, channel: document.channel,
+        evidence_hash: hash, evidence: document, rows: outputRows, status: "reviewed",
+        reviewed_at: reusable ? previous.reviewed_at : startedAt, checked_at: startedAt, review_policy_version: REVIEW_POLICY_VERSION,
+      }, { onConflict: "source_id,document_url" });
+      if (documentError) throw documentError;
+      count += outputRows.length; published += outputRows.filter((row) => row.is_published).length;
+      held += outputRows.filter((row) => !row.is_published).length;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      reviewedRows.push(...batch.map((row) => ({
-        ...row,
-        ai_review_status: "unavailable",
-        ai_reviewed_at: null,
-        ai_review_note: `تعذرت مراجعة الذكاء الاصطناعي في هذه الجولة: ${message}`.slice(0, 500),
-        ai_review_model: null,
-        status: "verify",
-        is_published: false,
-      })));
+      failures.push({ url: document.url, message: error.message });
+      await hideDocument(document);
     }
   }
-  const outputRows = applyReviewResults(rows, reviewedRows, existingRows ?? []);
-
-  if (rows.length) {
-    const { error } = await client.from("learning_opportunities").upsert(outputRows.map((row) => ({ ...row, source_id: sourceRow.id })), { onConflict: "source_fingerprint" });
+  for (const channel of channels.filter((channel) => channel.url && channel.status === "failed")) {
+    const { error } = await client.from("learning_opportunities").update({ is_published: false, publication_ready: false }).eq("source_id", sourceRow.id).eq("source_url", channel.url);
     if (error) throw error;
   }
-  if (rows.length && successfulPages.length === sourcePages.length) {
-    const { error } = await client
-      .from("learning_opportunities")
-      .update({ status: "closed", is_published: false })
-      .eq("source_id", sourceRow.id)
-      .eq("is_published", true)
-      .lt("last_seen_at", startedAt);
-    if (error) throw error;
-  }
-  return {
-    count: rows.length,
-    aiReviewed: reviewedRows.filter((row) => row.ai_review_status === "verified").length,
-    aiHeld: reviewedRows.filter((row) => row.ai_review_status === "needs_review").length,
-    aiUnavailable: reviewedRows.filter((row) => row.ai_review_status === "unavailable").length,
-  };
+  const report = { count, published, held, documents: uniqueDocuments.length, channels, failures };
+  const { error: statusError } = await client.from("learning_sources").update({
+    last_synced_at: startedAt, last_sync_status: failures.length || channels.some((channel) => channel.status !== "ok") ? "partial" : "ok",
+    last_sync_message: JSON.stringify(report), channel_status: channels,
+  }).eq("id", sourceRow.id);
+  if (statusError) throw statusError;
+  return { ...report, ok: uniqueDocuments.length > 0 && failures.length === 0 };
 }
 
+function databaseRow(row, sourceId, checkedAt) {
+  // Missing facts remain explicit in publication_issues. Neutral storage values
+  // only satisfy legacy NOT NULL constraints on quarantined records.
+  const result = { ...row, source_id: sourceId, last_seen_at: checkedAt, source_checked_at: checkedAt.slice(0, 10) };
+  for (const field of ["title_ar", "description_ar", "category", "subcategory", "location", "age_label", "duration_label", "schedule_label", "registration_url", "image_url"]) result[field] ??= "";
+  result.kind ??= "course"; result.mode ??= "in_person";
+  result.title_ar = result.title_ar.slice(0, 240); result.description_ar = result.description_ar.slice(0, 1800);
+  for (const field of ["starts_at", "ends_at", "registration_ends_at"]) if (!Number.isFinite(officialTimestamp(result[field]))) result[field] = null;
+  for (const field of ["min_age", "max_age"]) if (!Number.isInteger(result[field]) || result[field] < 3 || result[field] > 99) result[field] = null;
+  if (result.min_age !== null && result.max_age !== null && result.max_age < result.min_age) { result.min_age = null; result.max_age = null; }
+  if (!Number.isFinite(result.price_kwd) || result.price_kwd < 0) result.price_kwd = null;
+  return result;
+}
 export async function runSync() {
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -427,13 +475,13 @@ export async function runSync() {
   for (const source of defaultSources) {
     try {
       const outcome = await syncSource(client, source);
-      results.push({ source: source.name, ...outcome, ok: true });
+      results.push({ source: source.name, ...outcome });
     } catch (error) {
       results.push({ source: source.name, count: 0, ok: false, error: error instanceof Error ? error.message : String(error) });
     }
   }
   process.stdout.write(`${JSON.stringify({ syncedAt: new Date().toISOString(), results }, null, 2)}\n`);
-  if (results.every((result) => !result.ok)) process.exitCode = 1;
+  if (results.some((result) => !result.ok)) process.exitCode = 1;
   return results;
 }
 
