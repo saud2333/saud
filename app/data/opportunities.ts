@@ -29,6 +29,9 @@ export type LearningOpportunity = {
   image: string;
   featured: boolean;
   sourceCheckedAt: string;
+  aiReviewStatus?: "pending" | "verified" | "needs_review" | "unavailable";
+  aiReviewedAt?: string | null;
+  aiReviewNote?: string | null;
   tags: string[];
 };
 

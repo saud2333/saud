@@ -13,7 +13,7 @@
     "sync:opportunities": "node scripts/sync-opportunities.mjs",
     "db:generate": "drizzle-kit generate",
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && npm run build && npm run build:github && node --test tests/rendered-html.test.mjs tests/calculators.test.mjs tests/ai-core.test.mjs tests/github-pages.test.mjs tests/sync-opportunities.test.mjs",
+    "test": "npm run typecheck && npm run build && npm run build:github && node --test tests/rendered-html.test.mjs tests/calculators.test.mjs tests/ai-core.test.mjs tests/github-pages.test.mjs tests/sync-opportunities.test.mjs tests/ai-review.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern docs/assets"
   },
   "dependencies": {

@@ -94,6 +94,11 @@ function fromSupabaseRow(row: Record<string, unknown>): LearningOpportunity {
     image: asString(row.image_url, "/courses-skills.png"),
     featured: Boolean(row.featured),
     sourceCheckedAt: asString(row.source_checked_at, "2026-09-04"),
+    aiReviewStatus: ["pending", "verified", "needs_review", "unavailable"].includes(asString(row.ai_review_status))
+      ? asString(row.ai_review_status) as LearningOpportunity["aiReviewStatus"]
+      : undefined,
+    aiReviewedAt: asString(row.ai_reviewed_at) || null,
+    aiReviewNote: asString(row.ai_review_note) || null,
     tags: Array.isArray(row.tags) ? row.tags.filter((tag): tag is string => typeof tag === "string") : [],
   };
 }
@@ -111,8 +116,14 @@ function priceLabel(price: number | null) {
 }
 
 function checkedLabel(date: string) {
-  const parsed = new Date(`${date}T12:00:00`);
+  const parsed = new Date(date.includes("T") ? date : date + "T12:00:00");
   return Number.isNaN(parsed.getTime()) ? date : new Intl.DateTimeFormat("ar-KW", { day: "numeric", month: "short", year: "numeric" }).format(parsed);
+}
+
+function aiReviewLabel(item: LearningOpportunity) {
+  if (item.aiReviewStatus === "verified") return "✓ راجعه الذكاء الاصطناعي";
+  if (item.aiReviewStatus === "pending") return "◷ بانتظار مراجعة AI";
+  return "✓ مصدر رسمي";
 }
 
 function organizerMark(organizer: string) {
@@ -560,9 +571,9 @@ export default function KuwaitCoursesApp() {
                     <div><dt>الرسوم</dt><dd>{priceLabel(item.priceKwd)}</dd></div>
                   </dl>
                   <div className="course-organizer"><span className="org-monogram">{organizerMark(item.organizer)}</span><span><small>الجهة المنظمة</small><b>{item.organizer}</b></span></div>
-                  <div className="course-confidence">
-                    <span>✓ مصدر رسمي</span>
-                    <small>آخر مراجعة: {checkedLabel(item.sourceCheckedAt)}</small>
+                  <div className={"course-confidence " + (item.aiReviewStatus === "verified" ? "ai-reviewed" : "")}>
+                    <span>{aiReviewLabel(item)}</span>
+                    <small>آخر مراجعة: {checkedLabel(item.aiReviewedAt ?? item.sourceCheckedAt)}</small>
                   </div>
                   <div className="course-actions">
                     <button type="button" onClick={() => setSelected(item)}>التفاصيل</button>
@@ -579,11 +590,11 @@ export default function KuwaitCoursesApp() {
         <div><p className="section-index">03 / كيف نتحقق؟</p><h2>المعلومة تبدأ من المصدر.</h2></div>
         <div className="source-steps">
           <article><span>01</span><h3>نجمع</h3><p>من صفحات الجهات التدريبية، ونفتح التسجيل داخل نطاق الجهة نفسها فقط.</p></article>
-          <article><span>02</span><h3>نراجع</h3><p>نثبت الوصف والعمر والمكان، ونترك غير المنشور «غير محدد».</p></article>
+          <article><span>02</span><h3>نراجع بالذكاء الاصطناعي</h3><p>نقارن العمر والموعد والرابط بنص الصفحة الرسمية، ونحجز أي سجل مشكوك فيه للمراجعة.</p></article>
           <article><span>03</span><h3>نحدّث</h3><p>بوت GitHub يفحص المصادر كل 30 دقيقة، وSupabase يرسل التغيير للواجهة فورًا.</p></article>
         </div>
         <div className="source-badges" aria-label="المصادر الأساسية"><span>KGBC</span><span>KFAS</span><span>KISR</span><span>SACGC</span></div>
-        <p className="source-note">هذه نسخة تأسيسية للدليل وليست حصرًا كاملًا لكل الجهات بعد. تحقق دائمًا من صفحة المصدر قبل الدفع أو الحضور.</p>
+        <p className="source-note">مراجعة الذكاء الاصطناعي طبقة تحقق إضافية وليست بديلًا عن المصدر. لا ننشر تصحيحًا مستنتجًا؛ السجل غير المدعوم يُحجز للمراجعة.</p>
       </section>
 
       <footer>
@@ -629,7 +640,7 @@ export default function KuwaitCoursesApp() {
               <div><dt>الرسوم</dt><dd>{priceLabel(selected.priceKwd)}</dd></div>
             </dl>
             <div className="tag-list">{selected.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
-            <div className="verification-note"><span>✓</span><p><b>آخر تحقق من المصدر: {checkedLabel(selected.sourceCheckedAt)}</b><small>زر التسجيل يفتح موقع الجهة المنظمة فقط، ولا يحوّلك مِرصاد إلى نموذج خارجي مباشرة.</small></p></div>
+            <div className="verification-note"><span>✓</span><p><b>آخر تحقق من المصدر: {checkedLabel(selected.sourceCheckedAt)}</b><small>{selected.aiReviewStatus === "verified" && selected.aiReviewedAt ? "راجعه الذكاء الاصطناعي بتاريخ " + checkedLabel(selected.aiReviewedAt) + ". " : ""}زر التسجيل يفتح موقع الجهة المنظمة فقط، ولا يحوّلك مِرصاد إلى نموذج خارجي مباشرة.</small></p></div>
             <div className="detail-actions"><a className="primary-link" href={officialRegistrationDestination(selected)} target="_blank" rel="noreferrer">افتح صفحة التسجيل في موقع الجهة ↗</a><a href={officialSourceDestination(selected)} target="_blank" rel="noreferrer">عرض المصدر</a></div>
           </div>
         </article>

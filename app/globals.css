@@ -209,6 +209,7 @@ html[data-theme="dark"] .age-control .age-presets button.active { border-color: 
 .course-confidence { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: -4px 0 12px; padding: 8px 10px; border-radius: 9px; color: var(--muted); background: var(--surface-2); font-size: .66rem; }
 .course-confidence span { color: #21875a; font-weight: 850; }
 .course-confidence small { font-size: inherit; }
+.course-confidence.ai-reviewed { border: 1px solid color-mix(in srgb, #21875a 28%, transparent); background: color-mix(in srgb, #21875a 9%, var(--surface-2)); }
 .course-actions { display: grid; grid-template-columns: 0.75fr 1.25fr; gap: 8px; }
 .course-actions button, .course-actions a, .detail-actions a { display: flex; justify-content: center; align-items: center; gap: 9px; min-height: 44px; padding: 9px 13px; border: 1px solid var(--line); border-radius: 10px; background: transparent; cursor: pointer; font-size: 0.78rem; font-weight: 850; }
 .course-actions a, .detail-actions .primary-link { border-color: var(--navy); color: white; background: var(--navy); }

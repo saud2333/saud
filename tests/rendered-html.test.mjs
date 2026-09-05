@@ -6,7 +6,7 @@ const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
 
 test("implements the Arabic Mirsad discovery experience", async () => {
-  const [layout, page, app, css, data, migration, automaticSync, officialLinks] = await Promise.all([
+  const [layout, page, app, css, data, migration, automaticSync, officialLinks, aiReviewMigration, aiReviewScript, syncWorkflow] = await Promise.all([
     read("app/layout.tsx"),
     read("app/page.tsx"),
     read("app/components/KuwaitCoursesApp.tsx"),
@@ -15,6 +15,9 @@ test("implements the Arabic Mirsad discovery experience", async () => {
     read("supabase/migrations/0002_mirsad_learning_opportunities.sql"),
     read("supabase/migrations/0003_mirsad_automatic_sync.sql"),
     read("supabase/migrations/0004_mirsad_official_registration_urls.sql"),
+    read("supabase/migrations/0005_mirsad_ai_review.sql"),
+    read("scripts/ai-review.mjs"),
+    read(".github/workflows/sync-opportunities.yml"),
   ]);
   assert.match(layout, /مِرصاد \| دليل دورات وورش الكويت/);
   assert.match(layout, /lang="ar" dir="rtl"/);
@@ -45,6 +48,13 @@ test("implements the Arabic Mirsad discovery experience", async () => {
   assert.match(automaticSync, /registration_ends_at/);
   assert.match(officialLinks, /normalize_learning_opportunity_registration/);
   assert.match(officialLinks, /kuwaitgbc\\\.com/);
+  assert.match(app, /راجعه الذكاء الاصطناعي/);
+  assert.match(aiReviewMigration, /ai_review_status/);
+  assert.match(aiReviewMigration, /content_hash/);
+  assert.match(aiReviewScript, /api\.openai\.com\/v1\/responses/);
+  assert.match(aiReviewScript, /json_schema/);
+  assert.match(aiReviewScript, /store: false/);
+  assert.match(syncWorkflow, /OPENAI_API_KEY/);
   assert.match(css, /@media \(max-width: 680px\)/);
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /brand-bar-drift/);

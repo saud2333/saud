@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { DEFAULT_REVIEW_MODEL, reviewOpportunitiesWithAI } from "./ai-review.mjs";
 
 export const defaultSources = [
   {
@@ -152,6 +153,16 @@ function stableId(sourceKey, sourceUrl, title) {
   return `${sourceKey}-${createHash("sha1").update(fingerprint(sourceUrl, title)).digest("hex").slice(0, 18)}`;
 }
 
+function contentHash(row) {
+  const facts = [
+    row.title_ar, row.description_ar, row.kind, row.category, row.subcategory,
+    row.organizer, row.location, row.governorate, row.mode, row.min_age, row.max_age,
+    row.age_label, row.duration_label, row.schedule_label, row.starts_at, row.ends_at,
+    row.registration_ends_at, row.price_kwd, row.registration_url, row.source_url,
+  ];
+  return createHash("sha256").update(JSON.stringify(facts)).digest("hex");
+}
+
 function safeIso(value) {
   if (!value) return null;
   const parsed = new Date(value);
@@ -298,12 +309,25 @@ function uniqueRows(rows) {
 
 export function parseSourcePage(html, source, checkedAt = new Date().toISOString().slice(0, 10)) {
   const combined = [...parseJsonLd(html, source, checkedAt), ...parseCourseTables(html, source, checkedAt), ...parseLearningLinks(html, source, checkedAt)];
-  return uniqueRows(combined);
+  return uniqueRows(combined).map((row) => ({ ...row, content_hash: contentHash(row) }));
 }
 
 export function isExpired(row, now = Date.now()) {
   const deadline = row.registration_ends_at ?? row.ends_at;
   return Boolean(deadline && new Date(deadline).getTime() <= now);
+}
+
+export function applyReviewResults(rows, reviewedRows, existingRows = []) {
+  const reviewedByFingerprint = new Map(reviewedRows.map((row) => [row.source_fingerprint, row]));
+  const existingByFingerprint = new Map(existingRows.map((row) => [row.source_fingerprint, row]));
+  return rows.map((row) => {
+    const reviewed = reviewedByFingerprint.get(row.source_fingerprint);
+    if (reviewed) return reviewed;
+    const existing = existingByFingerprint.get(row.source_fingerprint);
+    return existing?.ai_review_status === "needs_review"
+      ? { ...row, status: "verify", is_published: false }
+      : row;
+  });
 }
 
 async function syncSource(client, source) {
@@ -314,19 +338,65 @@ async function syncSource(client, source) {
       signal: AbortSignal.timeout(25_000),
     });
     if (!response.ok) throw new Error(`${feedUrl}: HTTP ${response.status}`);
-    return parseSourcePage(await response.text(), { ...source, feedUrl });
+    const html = await response.text();
+    return {
+      rows: parseSourcePage(html, { ...source, feedUrl }),
+      evidence: stripHtml(html).slice(0, 12_000),
+      feedUrl,
+    };
   }));
   const successfulPages = sourcePages.filter((result) => result.status === "fulfilled");
   if (!successfulPages.length) throw new Error(`${source.name}: all official pages failed`);
-  const rows = uniqueRows(successfulPages.flatMap((result) => result.value));
+  const rows = uniqueRows(successfulPages.flatMap((result) => result.value.rows));
+  const evidence = successfulPages
+    .map((result) => `URL: ${result.value.feedUrl}\n${result.value.evidence}`)
+    .join("\n\n")
+    .slice(0, 30_000);
   const { data: sourceRow, error: sourceError } = await client.from("learning_sources").upsert({
     name: source.name, website_url: source.websiteUrl, feed_url: source.feedUrl, parser_key: "auto", is_active: true,
     last_synced_at: startedAt, last_sync_status: successfulPages.length === sourcePages.length ? "ok" : "partial",
     last_sync_message: `${rows.length} opportunities found across ${successfulPages.length}/${sourcePages.length} pages`,
   }, { onConflict: "website_url" }).select("id").single();
   if (sourceError) throw sourceError;
+
+  const { data: existingRows, error: existingError } = await client
+    .from("learning_opportunities")
+    .select("source_fingerprint,content_hash,ai_review_status")
+    .eq("source_id", sourceRow.id);
+  if (existingError) throw existingError;
+  const existingByFingerprint = new Map((existingRows ?? []).map((row) => [row.source_fingerprint, row]));
+  const changedRows = rows.filter((row) => {
+    const existing = existingByFingerprint.get(row.source_fingerprint);
+    return !existing || existing.content_hash !== row.content_hash || ["pending", "unavailable"].includes(existing.ai_review_status);
+  });
+  const reviewedRows = [];
+  for (let index = 0; index < changedRows.length; index += 12) {
+    const batch = changedRows.slice(index, index + 12);
+    try {
+      reviewedRows.push(...await reviewOpportunitiesWithAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        model: process.env.OPENAI_REVIEW_MODEL ?? process.env.OPENAI_MODEL ?? DEFAULT_REVIEW_MODEL,
+        source,
+        evidence,
+        rows: batch,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      reviewedRows.push(...batch.map((row) => ({
+        ...row,
+        ai_review_status: "unavailable",
+        ai_reviewed_at: null,
+        ai_review_note: `تعذرت مراجعة الذكاء الاصطناعي في هذه الجولة: ${message}`.slice(0, 500),
+        ai_review_model: null,
+        status: "verify",
+        is_published: false,
+      })));
+    }
+  }
+  const outputRows = applyReviewResults(rows, reviewedRows, existingRows ?? []);
+
   if (rows.length) {
-    const { error } = await client.from("learning_opportunities").upsert(rows.map((row) => ({ ...row, source_id: sourceRow.id })), { onConflict: "source_fingerprint" });
+    const { error } = await client.from("learning_opportunities").upsert(outputRows.map((row) => ({ ...row, source_id: sourceRow.id })), { onConflict: "source_fingerprint" });
     if (error) throw error;
   }
   if (rows.length && successfulPages.length === sourcePages.length) {
@@ -338,7 +408,12 @@ async function syncSource(client, source) {
       .lt("last_seen_at", startedAt);
     if (error) throw error;
   }
-  return rows.length;
+  return {
+    count: rows.length,
+    aiReviewed: reviewedRows.filter((row) => row.ai_review_status === "verified").length,
+    aiHeld: reviewedRows.filter((row) => row.ai_review_status === "needs_review").length,
+    aiUnavailable: reviewedRows.filter((row) => row.ai_review_status === "unavailable").length,
+  };
 }
 
 export async function runSync() {
@@ -351,7 +426,8 @@ export async function runSync() {
   const results = [];
   for (const source of defaultSources) {
     try {
-      results.push({ source: source.name, count: await syncSource(client, source), ok: true });
+      const outcome = await syncSource(client, source);
+      results.push({ source: source.name, ...outcome, ok: true });
     } catch (error) {
       results.push({ source: source.name, count: 0, ok: false, error: error instanceof Error ? error.message : String(error) });
     }

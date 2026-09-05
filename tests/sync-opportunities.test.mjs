@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defaultSources, isExpired, parseSourcePage } from "../scripts/sync-opportunities.mjs";
+import { applyReviewResults, defaultSources, isExpired, parseSourcePage } from "../scripts/sync-opportunities.mjs";
 
 const source = {
   key: "fixture",
@@ -67,4 +67,29 @@ test("extracts dated KISR-style table rows and closes past courses", () => {
 test("tracks the four requested Kuwait learning sources", () => {
   assert.deepEqual(defaultSources.slice(0, 4).map((sourceItem) => sourceItem.key), ["kgbc", "kfas", "kisr", "sacgc"]);
   assert.ok(defaultSources.find((sourceItem) => sourceItem.key === "kfas").feedUrls.includes("https://apply.kfas.org.kw/Offers/ListOffers"));
+});
+
+test("uses a stable factual hash so AI review only repeats after content changes", () => {
+  const base = `<script type="application/ld+json">${JSON.stringify({
+    "@type": "Course",
+    name: "Future Science Course",
+    description: "Official description",
+    url: "/future-science",
+    offers: { url: "/register" },
+  })}</script>`;
+  const first = parseSourcePage(base, source, "2030-09-01")[0];
+  const laterCheck = parseSourcePage(base, source, "2030-09-02")[0];
+  const changed = parseSourcePage(base.replace("Official description", "Updated official description"), source, "2030-09-02")[0];
+  assert.equal(first.content_hash, laterCheck.content_hash);
+  assert.notEqual(first.content_hash, changed.content_hash);
+});
+
+test("does not republish an unchanged opportunity that previously failed AI review", () => {
+  const row = { source_fingerprint: "official#course", status: "open", is_published: true };
+  const [output] = applyReviewResults([row], [], [{
+    source_fingerprint: row.source_fingerprint,
+    ai_review_status: "needs_review",
+  }]);
+  assert.equal(output.status, "verify");
+  assert.equal(output.is_published, false);
 });
