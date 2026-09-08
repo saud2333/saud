@@ -29,7 +29,9 @@ test("implements the Arabic Mirsad discovery experience", async () => {
   assert.match(app, /اكتب العمر/);
   assert.match(app, /مُرشد مِرصاد/);
   assert.match(app, /learning-opportunities-live/);
-  assert.match(app, /السعر غير منشور/);
+  assert.match(app, /if \(price === null\) return "غير معلن من الجهة"/);
+  assert.match(app, /setup_required/);
+  assert.match(app, /awaiting_sync/);
   assert.match(data, /Service Robotics for Industry/);
   assert.match(data, /لم يحدده المنظم/);
   assert.match(data, /مجلس الكويت للمباني الخضراء/);

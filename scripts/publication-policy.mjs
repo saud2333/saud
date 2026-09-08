@@ -1,6 +1,15 @@
 // An AI verdict alone can never make an incomplete announcement public.
-export const REVIEW_POLICY_VERSION = "complete-official-v2";
+export const REVIEW_POLICY_VERSION = "official-nullable-age-fees-v3";
 export const requiredEvidenceFields = ["title", "description", "kind", "age", "schedule", "location", "mode", "price", "registration"];
+export const UNANNOUNCED = "غير معلن من الجهة";
+
+export function evidenceFieldsFor(row) {
+  return requiredEvidenceFields.filter((field) => {
+    if (field === "age") return row.min_age != null || row.max_age != null;
+    if (field === "price") return row.price_kwd != null;
+    return true;
+  });
+}
 
 export function officialTimestamp(value) {
   if (typeof value !== "string") return NaN;
@@ -25,13 +34,22 @@ export function officialUrl(value, source) {
 
 export function publicationIssues(row, source, document, now = Date.now()) {
   const issues = [];
-  const unknown = /لم يحدد|غير محدد|يحدده|غير منشور|تفاصيل الفرصة كما|مدرجة في الخطة|unknown|unspecified|tba|tbd/i;
-  for (const field of ["title_ar", "description_ar", "kind", "category", "subcategory", "organizer", "location", "mode", "age_label", "duration_label", "schedule_label"]) {
-    if (typeof row[field] !== "string" || !row[field].trim() || unknown.test(row[field])) issues.push(`missing:${field}`);
+  const unknown = /لم يحدد|غير محدد|غير معلن|يحدده|غير منشور|تفاصيل الفرصة كما|مدرجة في الخطة|unknown|unspecified|tba|tbd/i;
+  for (const field of ["title_ar", "description_ar", "kind", "category", "subcategory", "organizer", "location", "mode", "duration_label", "schedule_label"]) {
+    const value = row[field];
+    const missing = field === "description_ar"
+      ? /^(?:غير معلن من الجهة|لم يحدده المنظم|غير محدد|غير منشور|unknown|unspecified|tba|tbd)[.!؟]?$/i.test(value?.trim?.() ?? "")
+      : unknown.test(value);
+    if (typeof value !== "string" || !value.trim() || missing) issues.push(`missing:${field}`);
   }
   if ((row.description_ar?.trim().length ?? 0) < 10) issues.push("missing:description_ar");
-  if (!Number.isInteger(row.min_age) || !Number.isInteger(row.max_age) || row.min_age < 3 || row.max_age > 99 || row.max_age < row.min_age) issues.push("missing:age_range");
-  if (typeof row.price_kwd !== "number" || !Number.isFinite(row.price_kwd) || row.price_kwd < 0) issues.push("missing:price");
+  for (const field of ["min_age", "max_age"]) {
+    if (row[field] !== null && (!Number.isInteger(row[field]) || row[field] < 3 || row[field] > 99)) issues.push(`invalid:${field}`);
+  }
+  if (row.min_age != null && row.max_age != null && row.max_age < row.min_age) issues.push("invalid:age_range");
+  if ((row.min_age != null || row.max_age != null) && (typeof row.age_label !== "string" || !row.age_label.trim() || unknown.test(row.age_label))) issues.push("missing:age_label");
+  if (row.min_age === null && row.max_age === null && row.age_label !== UNANNOUNCED) issues.push("invalid:unknown_age_label");
+  if (row.price_kwd !== null && (typeof row.price_kwd !== "number" || !Number.isFinite(row.price_kwd) || row.price_kwd < 0)) issues.push("invalid:price");
   const start = officialTimestamp(row.starts_at), end = officialTimestamp(row.ends_at), deadline = officialTimestamp(row.registration_ends_at);
   if (![start, end, deadline].every(Number.isFinite) || end < start || deadline > start) issues.push("invalid:dates");
   if (start <= now || deadline <= now || row.registration_state !== "open") issues.push("registration:not_open");
@@ -40,7 +58,7 @@ export function publicationIssues(row, source, document, now = Date.now()) {
   if (!document.images.includes(row.image_url)) issues.push("missing:official_image");
   if (!["course", "workshop", "camp"].includes(row.kind)) issues.push("invalid:kind");
   if (!["in_person", "online", "hybrid"].includes(row.mode)) issues.push("invalid:mode");
-  for (const field of requiredEvidenceFields) {
+  for (const field of evidenceFieldsFor(row)) {
     const claim = row.field_evidence?.find((entry) => entry.field === field);
     const quote = claim?.quote?.trim();
     const imageEvidence = claim?.image_url && document.images.includes(claim.image_url);

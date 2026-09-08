@@ -4,6 +4,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "../lib/supabase";
+import { emptyCatalogMode } from "../lib/catalog-status.mjs";
 import {
   categories,
   categoryMeta,
@@ -12,7 +13,7 @@ import {
   type OpportunityMode,
 } from "../data/opportunities";
 
-type DataMode = "connecting" | "live" | "unavailable";
+type DataMode = "connecting" | "live" | "unavailable" | "setup_required" | "awaiting_sync";
 type SortMode = "featured" | "price" | "title";
 
 declare global {
@@ -80,7 +81,7 @@ function fromSupabaseRow(row: Record<string, unknown>): LearningOpportunity {
     mode,
     minAge: asNumber(row.min_age),
     maxAge: asNumber(row.max_age),
-    ageLabel: asString(row.age_label, "لم يحدده المنظم"),
+    ageLabel: row.min_age == null && row.max_age == null ? "غير معلن من الجهة" : asString(row.age_label, "غير معلن من الجهة"),
     duration: asString(row.duration_label, "يحدده المنظم"),
     schedule: asString(row.schedule_label, "الموعد يحدده المنظم"),
     startsAt: asString(row.starts_at) || null,
@@ -112,7 +113,7 @@ function ageMatches(item: LearningOpportunity, age: number | null) {
 }
 
 function priceLabel(price: number | null) {
-  if (price === null) return "السعر غير منشور";
+  if (price === null) return "غير معلن من الجهة";
   if (price === 0) return "مجاني";
   return `${new Intl.NumberFormat("ar-KW", { maximumFractionDigits: 3 }).format(price)} د.ك`;
 }
@@ -248,10 +249,15 @@ export default function KuwaitCoursesApp() {
       if (!error) {
         const liveItems = (data ?? []).map((row) => fromSupabaseRow(row as Record<string, unknown>));
         setOpportunities(liveItems);
-        setDataMode("live");
+        if (liveItems.length) setDataMode("live");
+        else {
+          const { data: sources, error: sourceError } = await client.from("learning_sources").select("last_synced_at,last_sync_status").eq("is_active", true);
+          if (!active) return;
+          setDataMode(sourceError ? "unavailable" : emptyCatalogMode(sources));
+        }
       } else {
         setOpportunities([]);
-        setDataMode("unavailable");
+        setDataMode(["PGRST205", "PGRST204"].includes(error.code) ? "setup_required" : "unavailable");
       }
       } catch {
         if (active) { setOpportunities([]); setDataMode("unavailable"); }
@@ -420,7 +426,7 @@ export default function KuwaitCoursesApp() {
           <a href="#sources">المصادر</a>
         </nav>
         <div className="header-actions">
-          <span className={`sync-state ${dataMode}`}><i />{dataMode === "live" ? "متصل بالدليل" : dataMode === "connecting" ? "فحص التحديثات" : "تعذّر تحديث الدليل"}</span>
+          <span className={`sync-state ${dataMode}`}><i />{dataMode === "live" ? "متصل بالدليل" : dataMode === "connecting" ? "فحص التحديثات" : dataMode === "setup_required" ? "يلزم إكمال الربط" : dataMode === "awaiting_sync" ? "بانتظار تفعيل التحديثات" : "تعذّر تحديث الدليل"}</span>
           <button className="theme-toggle" type="button" aria-label={theme === "light" ? "تفعيل الوضع الداكن" : "تفعيل الوضع الفاتح"} onClick={() => setSiteTheme(theme === "light" ? "dark" : "light")}>
             <span>{theme === "light" ? "☾" : "☀"}</span>
           </button>
@@ -432,7 +438,7 @@ export default function KuwaitCoursesApp() {
         <div className="hero-content">
           <p className="kicker"><span>فرص موثّقة من الجهات الرسمية</span></p>
           <h1>تعلّم مهارات المستقبل<br /><em>من فرص الكويت.</em></h1>
-          <p className="hero-copy">الدورات والورش المكتملة معلوماتها والمفتوح تسجيلها. ابحث بالعمر أو المجال أو المكان، وسجّل من موقع الجهة الرسمي.</p>
+          <p className="hero-copy">الدورات والورش المعلنة رسميًا والمفتوح تسجيلها. ابحث بالعمر أو المجال أو المكان، وسجّل من موقع الجهة الرسمي.</p>
           <div className="hero-search" role="search">
             <span className="search-icon">⌕</span>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ابحث عن روبوتات، إسعافات، تصميم…" aria-label="البحث في الدورات والورش" />
@@ -440,7 +446,7 @@ export default function KuwaitCoursesApp() {
             <button className="search-submit" type="button" onClick={() => catalogRef.current?.scrollIntoView({ behavior: "smooth" })}>ابحث</button>
           </div>
           <div className="hero-notes">
-            <span><b>{activeOpportunities.length}</b> فرصة متاحة الآن</span>
+            <span><b>{dataMode === "live" ? activeOpportunities.length : "—"}</b> {dataMode === "live" ? "فرصة متاحة الآن" : "لم يكتمل التحقق من الفرص"}</span>
             <span><b>{new Set(activeOpportunities.map((item) => item.category)).size}</b> مجالات</span>
             <span><b>تلقائي</b> إخفاء التسجيل المنتهي</span>
           </div>
@@ -553,7 +559,7 @@ export default function KuwaitCoursesApp() {
 
           <div className="catalog-results">
             <div className="results-toolbar">
-              <div><b>{filtered.length.toLocaleString("ar-KW")}</b> فرصة مطابقة {activeFilterCount > 0 && <span>· {activeFilterCount} فلاتر مفعّلة</span>}</div>
+              <div><b>{dataMode === "live" ? filtered.length.toLocaleString("ar-KW") : "—"}</b> فرصة مطابقة {activeFilterCount > 0 && <span>· {activeFilterCount} فلاتر مفعّلة</span>}</div>
               <label>ترتيب <select value={sort} onChange={(event) => setSort(event.target.value as SortMode)}><option value="featured">الأبرز</option><option value="price">الأقل سعرًا</option><option value="title">أبجديًا</option></select></label>
             </div>
             <div className="active-filters">
@@ -594,7 +600,7 @@ export default function KuwaitCoursesApp() {
                   </div>
                 </div>
               </article>)}
-            </div> : <div className="empty-state" role="status"><span>⌁</span><h3>{dataMode === "connecting" ? "جارٍ التحقق من الفرص" : dataMode === "unavailable" ? "تعذّر التحقق من الدورات حاليًا" : "لا توجد فرص مؤكدة ومكتملة حاليًا"}</h3><p>{dataMode === "unavailable" ? "سنحاول الاتصال مجددًا تلقائيًا. لا نعرض بيانات قديمة أو غير مؤكدة أثناء التعذّر." : "تظهر الدورة أو الورشة هنا بعد إعلانها رسميًا واكتمال معلوماتها ومراجعتها، ما دام التسجيل متاحًا."}</p>{(activeFilterCount > 0 || query) && <button type="button" onClick={clearFilters}>مسح الفلاتر</button>}</div>}
+            </div> : <div className="empty-state" role="status"><span>⌁</span><h3>{dataMode === "setup_required" ? "ربط دليل الدورات غير مكتمل" : dataMode === "awaiting_sync" ? "بانتظار تفعيل جمع الدورات" : dataMode === "connecting" ? "جارٍ التحقق من الفرص" : dataMode === "unavailable" ? "تعذّر التحقق من الدورات حاليًا" : "لا توجد فرص مؤكدة تطابق البحث حاليًا"}</h3><p>{dataMode === "setup_required" ? "قاعدة بيانات الدورات تحتاج إعدادًا. هذا لا يعني عدم وجود دورات لدى الجهات." : dataMode === "awaiting_sync" ? "قاعدة البيانات متصلة، لكن جمع الإعلانات ومراجعتها لم يبدأ بعد. لا يمثل هذا العدد الدورات المتاحة لدى الجهات." : dataMode === "unavailable" ? "سنحاول الاتصال مجددًا تلقائيًا. لا نعرض بيانات قديمة أو غير مؤكدة أثناء التعذّر." : "تظهر الإعلانات الرسمية بعد التحقق من المواعيد ورابط التسجيل. غياب العمر أو الرسوم لا يمنع العرض؛ نكتب «غير معلن من الجهة»."}</p>{(activeFilterCount > 0 || query) && <button type="button" onClick={clearFilters}>مسح الفلاتر</button>}</div>}
           </div>
         </div>
       </section>
@@ -603,11 +609,11 @@ export default function KuwaitCoursesApp() {
         <div><p className="section-index">03 / كيف نتحقق؟</p><h2>المعلومة تبدأ من المصدر.</h2></div>
         <div className="source-steps">
           <article><span>01</span><h3>الإعلان الرسمي</h3><p>نعتمد موقع الجهة وحساباتها التي ثبتت رسميتها، مع رابط الإعلان الأصلي.</p></article>
-          <article><span>02</span><h3>اكتمال ومراجعة</h3><p>نراجع الوصف والعمر والموعد والمكان والرسوم والرابط مقابل الإعلان. النقص أو التعارض يوقف النشر.</p></article>
-          <article><span>03</span><h3>تسجيل متاح</h3><p>تظهر الفرص المكتملة فقط، وتختفي بعد إغلاق التسجيل أو بدء البرنامج.</p></article>
+          <article><span>02</span><h3>مراجعة بلا تخمين</h3><p>نراجع المعلومات مقابل الإعلان. العمر والرسوم غير المذكورين يظهران بعبارة «غير معلن من الجهة»، ولا نعتبر التسجيل مجانيًا أو مناسبًا لكل الأعمار.</p></article>
+          <article><span>03</span><h3>تسجيل متاح</h3><p>تظهر الفرص ذات المواعيد وروابط التسجيل المؤكدة، وتختفي بعد إغلاق التسجيل أو بدء البرنامج.</p></article>
         </div>
         <div className="source-badges" aria-label="المصادر الأساسية"><span>KGBC</span><span>KFAS</span><span>KISR</span><span>SACGC</span></div>
-        <p className="source-note">إذا لم تعلن الجهة فرصة مكتملة، لا نضيف لها بطاقات. مراجعة الذكاء الاصطناعي تدعم التحقق ولا تضمن خلو المصدر من الخطأ؛ راجع الإعلان الرسمي قبل التسجيل.</p>
+        <p className="source-note">لا نضيف بطاقات دون إعلان رسمي. غياب العمر أو الرسوم لا يخفي الدورة، لكن تعارض المعلومات أو عدم تأكد التسجيل يوقف نشرها. المراجعة الآلية لا تضمن خلو المصدر من الخطأ؛ راجع الإعلان الرسمي قبل التسجيل.</p>
       </section>
 
       <footer>

@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
-import { gatePublication, officialTimestamp, publicationIssues, requiredEvidenceFields } from "../scripts/publication-policy.mjs";
+import { gatePublication, officialTimestamp, publicationIssues, requiredEvidenceFields, UNANNOUNCED } from "../scripts/publication-policy.mjs";
 import { collectSocialDocuments, fetchOfficialPage, htmlDocument, parseYoutubeFeed, withImageHashes } from "../scripts/official-documents.mjs";
 import { documentHash, extractAnnouncements } from "../scripts/announcement-extraction.mjs";
 import { syncSource } from "../scripts/sync-opportunities.mjs";
+import { emptyCatalogMode } from "../app/lib/catalog-status.mjs";
 
 const source = { key: "fixture", name: "المركز العلمي", websiteUrl: "https://official.test/", feedUrl: "https://official.test/science" };
 const quote = "ورشة العلوم، أعمار 14–18، حضوري في المختبر، يومان 1–2 أكتوبر 2030، 10 د.ك، التسجيل مفتوح حتى 28 سبتمبر 2030.";
@@ -22,11 +23,46 @@ const complete = {
 
 test("only publishes a complete official announcement after independent review", () => {
   assert.equal(gatePublication(complete, source, document).is_published, true);
-  for (const missing of ["min_age", "max_age", "price_kwd", "registration_ends_at", "starts_at", "ends_at", "image_url", "description_ar", "location", "mode", "duration_label", "registration_url"]) {
+  for (const missing of ["registration_ends_at", "starts_at", "ends_at", "image_url", "description_ar", "location", "mode", "duration_label", "registration_url"]) {
     assert.equal(gatePublication({ ...complete, [missing]: null }, source, document).is_published, false, missing);
   }
   assert.equal(gatePublication({ ...complete, ai_review_status: "needs_review" }, source, document).is_published, false);
   assert.equal(gatePublication({ ...complete, registration_state: "unknown" }, source, document).is_published, false);
+});
+
+test("unpublished age and fees remain null without hiding an otherwise verified course", () => {
+  const unknown = { ...complete, min_age: null, max_age: null, age_label: UNANNOUNCED, price_kwd: null,
+    field_evidence: complete.field_evidence.filter((claim) => !["age", "price"].includes(claim.field)) };
+  const published = gatePublication(unknown, source, document);
+  assert.equal(published.is_published, true);
+  assert.equal(published.min_age, null);
+  assert.equal(published.price_kwd, null);
+  assert.equal(published.age_label, UNANNOUNCED);
+  assert.equal(gatePublication({ ...unknown, description_ar: "ورشة علوم وتجارب عملية، الرسوم غير معلنة من الجهة." }, source, document).is_published, true);
+  assert.equal(gatePublication({ ...unknown, description_ar: UNANNOUNCED }, source, document).is_published, false);
+  assert.equal(gatePublication({ ...unknown, age_label: "كل الأعمار" }, source, document).is_published, false);
+  assert.equal(gatePublication({ ...unknown, price_kwd: 0 }, source, document).is_published, false);
+  assert.equal(gatePublication({ ...unknown, min_age: 18 }, source, document).is_published, false);
+});
+
+test("empty catalogs do not claim zero verified courses after missing, stale or failed syncs", () => {
+  const now = Date.parse("2030-09-01T12:00:00Z");
+  const fresh = { last_synced_at: "2030-09-01T11:55:00Z", last_sync_status: "ok" };
+  assert.equal(emptyCatalogMode([], now), "awaiting_sync");
+  assert.equal(emptyCatalogMode([{ last_synced_at: null }], now), "awaiting_sync");
+  assert.equal(emptyCatalogMode([fresh], now), "live");
+  assert.equal(emptyCatalogMode([{ ...fresh, last_sync_status: "partial" }], now), "unavailable");
+  assert.equal(emptyCatalogMode([{ ...fresh, last_synced_at: "2030-08-20T11:55:00Z" }], now), "unavailable");
+  assert.equal(emptyCatalogMode([fresh, { last_synced_at: null }], now), "unavailable");
+});
+
+test("known single age bounds still require evidence and invalid numbers are never unknown", () => {
+  assert.equal(gatePublication({ ...complete, max_age: null, age_label: "14 سنة فأكثر" }, source, document).is_published, true);
+  assert.equal(gatePublication({ ...complete, min_age: null, age_label: "حتى 18 سنة" }, source, document).is_published, true);
+  for (const invalid of [-1, NaN, "", "10"]) {
+    assert.equal(gatePublication({ ...complete, price_kwd: invalid }, source, document).is_published, false);
+    assert.equal(gatePublication({ ...complete, min_age: invalid }, source, document).is_published, false);
+  }
 });
 
 test("rejects invented evidence, external forms, invalid date ordering, and expired registrations", () => {
