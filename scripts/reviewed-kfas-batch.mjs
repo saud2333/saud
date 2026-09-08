@@ -42,12 +42,12 @@ export const reviewedCourses = [
   },
 ];
 
-export async function prepareReviewedBatch() {
+export async function prepareReviewedBatch(courses = reviewedCourses) {
   // A future operator must review source contents again, not replay an old verdict.
   assert.equal(new Date().toISOString().slice(0, 10), "2026-09-08", "This dated review must not be replayed on another day");
   const source = { name: "مؤسسة الكويت للتقدم العلمي — KFAS", websiteUrl: "https://www.kfas.org.kw/" };
   const result = [];
-  for (const course of reviewedCourses) {
+  for (const course of courses) {
     const url = `https://apply.kfas.org.kw/Offers/OffersDetailes?offerId=${course.id}`;
     const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(30_000) });
     assert.equal(response.status, 200);
@@ -59,13 +59,16 @@ export async function prepareReviewedBatch() {
     const original = htmlDocument(textHtml, url, source);
     original.text = original.text.replace(/&ndash;/g, "–").replace(/&mdash;/g, "—");
     for (const value of [course.title, course.datesQuote, course.deadlineQuote, course.descriptionQuote, course.kindQuote, "08:00 AM", "03:00 PM", "Abdullah Al Salem Cultural Center", "Apply"]) assert.ok(original.text.includes(value), `Changed source: ${value}. Current content: ${original.text.slice(0, 1500)}`);
+    assert.doesNotMatch(original.text, /Registration Closed|التسجيل مغلق/i, "Registration is closed");
+    if (course.eligibilityQuote) assert.ok(original.text.includes(course.eligibilityQuote), "Eligibility changed since review");
     const imageTag = [...html.matchAll(/<img\b[^>]*>/gi)].map(m => m[0]).find(tag => /alt=["']Offer Image["']/i.test(tag));
     const encoded = imageTag?.match(/src=["']data:image\/[^;]+;base64,([^"']+)["']/i)?.[1];
     assert.ok(encoded, "Missing original offer image");
     const imageHash = createHash("sha256").update(Buffer.from(encoded, "base64")).digest("hex");
     assert.equal(imageHash, course.hash, "Official image changed since visual review");
-    assert.equal(createHash("sha256").update(await readFile(new URL(`../public/verified/${course.slug}.png`, import.meta.url))).digest("hex"), imageHash);
-    const imageUrl = `https://saud2333.github.io/saud/verified/${course.slug}.png`;
+    const imageFile = `${course.slug}.${course.extension ?? "png"}`;
+    assert.equal(createHash("sha256").update(await readFile(new URL(`../public/verified/${imageFile}`, import.meta.url))).digest("hex"), imageHash);
+    const imageUrl = `https://saud2333.github.io/saud/verified/${imageFile}`;
     // This mirror is accepted only after a byte-for-byte match with the official embedded image.
     const document = { ...original, images: [imageUrl], imageHashes: [imageHash], imageProvenance: [{ url: imageUrl, sourcePage: url, selector: 'img[alt="Offer Image"]', sha256: imageHash, kind: "provider_logo" }] };
     const claims = [
@@ -93,4 +96,4 @@ export async function prepareReviewedBatch() {
   return result;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) console.log(JSON.stringify(await prepareReviewedBatch()));
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) console.log(JSON.stringify(await prepareReviewedBatch()));

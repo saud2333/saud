@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { DEFAULT_REVIEW_MODEL, reviewOpportunitiesWithAI } from "./ai-review.mjs";
 import { documentHash, extractAnnouncements } from "./announcement-extraction.mjs";
 import { collectSocialDocuments, fetchOfficialPage, withImageHashes } from "./official-documents.mjs";
+import { mirrorEmbeddedImages } from "./embedded-media.mjs";
 import { gatePublication, officialTimestamp, officialUrl, publicationIssues, REVIEW_POLICY_VERSION } from "./publication-policy.mjs";
 
 export const defaultSources = [
@@ -370,6 +371,10 @@ export async function syncSource(client, source, { env = process.env, fetchImpl 
   const uniqueDocuments = [...groupedDocuments.values()]
     .sort((a, b) => (Date.parse(cacheByUrl.get(a.url)?.checked_at) || 0) - (Date.parse(cacheByUrl.get(b.url)?.checked_at) || 0));
   const failures = []; let count = 0, published = 0, held = 0;
+  const prepareDocument = async (document) => {
+    const prepared = await mirrorEmbeddedImages(document, source, client);
+    return withImageHashes(prepared.document, source, fetchImpl, prepared.trustedMirrors);
+  };
   const hideDocument = async (document) => {
     for (const url of new Set([document.url, ...(document.requestedUrls ?? [])])) {
       const { error } = await client.from("learning_opportunities").update({ is_published: false, publication_ready: false }).eq("source_id", sourceRow.id).eq("source_url", url);
@@ -383,7 +388,7 @@ export async function syncSource(client, source, { env = process.env, fetchImpl 
     }
     let outputRows;
     try {
-      document = await withImageHashes(document, source, fetchImpl);
+      document = await prepareDocument(document);
       const hash = documentHash(document), previous = cacheByUrl.get(document.url);
       const reusable = previous?.evidence_hash === hash && previous.review_policy_version === REVIEW_POLICY_VERSION
         && previous.status === "reviewed" && previous.rows.every((row) => row.ai_review_status === "verified")
@@ -403,7 +408,7 @@ export async function syncSource(client, source, { env = process.env, fetchImpl 
         const row = outputRows[index];
         if (!row.is_published) continue;
         const registrationPage = row.registration_url === document.url ? document
-          : await withImageHashes(await fetchOfficialPage(row.registration_url, source, fetchImpl), source, fetchImpl);
+          : await prepareDocument(await fetchOfficialPage(row.registration_url, source, fetchImpl));
         const registrationHash = documentHash(registrationPage);
         const prior = previous?.rows.find((item) => item.source_fingerprint === row.source_fingerprint);
         if (!reusable || prior?.registration_page_hash !== registrationHash) {
@@ -454,7 +459,7 @@ export async function syncSource(client, source, { env = process.env, fetchImpl 
 function databaseRow(row, sourceId, checkedAt) {
   // Missing facts remain explicit in publication_issues. Neutral storage values
   // only satisfy legacy NOT NULL constraints on quarantined records.
-  const result = { ...row, source_id: sourceId, last_seen_at: checkedAt, source_checked_at: checkedAt.slice(0, 10) };
+  const result = { ...row, source_id: sourceId, last_seen_at: checkedAt, source_checked_at: checkedAt.slice(0, 10), image_caption: row.image_caption || "صورة منشورة ضمن الإعلان الرسمي" };
   for (const field of ["title_ar", "description_ar", "category", "subcategory", "location", "age_label", "duration_label", "schedule_label", "registration_url", "image_url"]) result[field] ??= "";
   result.kind ??= "course"; result.mode ??= "in_person";
   result.title_ar = result.title_ar.slice(0, 240); result.description_ar = result.description_ar.slice(0, 1800);

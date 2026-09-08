@@ -3,6 +3,18 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { reviewedCourses } from "../scripts/reviewed-kfas-batch.mjs";
+import { additionalReviewedCourses } from "../scripts/additional-kfas-courses.mjs";
+
+test("additional November KFAS courses retain authentic images and eligibility", async () => {
+  assert.equal(additionalReviewedCourses.length, 3);
+  for (const course of additionalReviewedCourses) {
+    const bytes = await readFile(new URL(`../public/verified/${course.slug}.${course.extension}`, import.meta.url));
+    assert.equal(createHash("sha256").update(bytes).digest("hex"), course.hash);
+    assert.ok(Date.parse(course.deadline) < Date.parse(course.start));
+    assert.match(course.description, /سنتين/);
+    assert.match(course.caption, /^شعار/);
+  }
+});
 
 test("three reviewed KFAS programs preserve verified provider logos and deadlines", async () => {
   assert.equal(reviewedCourses.length, 3);
