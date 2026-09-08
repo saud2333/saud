@@ -464,17 +464,40 @@ function databaseRow(row, sourceId, checkedAt) {
   if (!Number.isFinite(result.price_kwd) || result.price_kwd < 0) result.price_kwd = null;
   return result;
 }
-export async function runSync() {
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.");
-  const client = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+export function syncConfiguration(env, { requireAI = true } = {}) {
+  const url = (env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
+  const serviceKey = (env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+  if (!url || !serviceKey) throw new Error("Supabase server connection is not configured; no catalog data was changed.");
+  const parsed = new URL(url);
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash || !["", "/"].includes(parsed.pathname)) throw new Error("Invalid Supabase HTTPS project URL.");
+  const aiConfigured = Boolean(env.OPENAI_API_KEY?.trim());
+  // Missing review credentials are a setup failure, not evidence that courses disappeared.
+  // This must run before creating a client, archiving, or reconciling any source.
+  if (requireAI && !aiConfigured) throw new Error("OPENAI_API_KEY is missing; automated review is inactive and no catalog data was changed.");
+  return { url, serviceKey, aiConfigured };
+}
+
+export async function checkSyncConnection({ env = process.env, createClientImpl = createClient } = {}) {
+  const config = syncConfiguration(env, { requireAI: false });
+  const client = createClientImpl(config.url, config.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const tables = ["learning_sources", "learning_opportunities", "learning_source_documents"];
+  for (const table of tables) {
+    // HEAD requests prove access to the catalog and private evidence without exporting records.
+    const { error } = await client.from(table).select("*", { count: "exact", head: true });
+    if (error) throw new Error(`Catalog connection check failed: ${table} (${error.code || "request_failed"}).`);
+  }
+  return { connection: "ok", catalogTables: tables, aiConfigured: config.aiConfigured, automatedReviewTested: false, writesPerformed: false };
+}
+
+export async function runSync({ env = process.env, createClientImpl = createClient } = {}) {
+  const { url, serviceKey } = syncConfiguration(env);
+  const client = createClientImpl(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { error: archiveError } = await client.rpc("archive_expired_learning_opportunities");
   if (archiveError) throw archiveError;
   const results = [];
   for (const source of defaultSources) {
     try {
-      const outcome = await syncSource(client, source);
+      const outcome = await syncSource(client, source, { env });
       results.push({ source: source.name, ...outcome });
     } catch (error) {
       results.push({ source: source.name, count: 0, ok: false, error: error instanceof Error ? error.message : String(error) });
@@ -486,4 +509,7 @@ export async function runSync() {
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
-if (invokedPath && fileURLToPath(import.meta.url) === invokedPath) await runSync();
+if (invokedPath && fileURLToPath(import.meta.url) === invokedPath) {
+  if (process.argv.includes("--check-connection")) console.log(JSON.stringify(await checkSyncConnection()));
+  else await runSync();
+}
