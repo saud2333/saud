@@ -27,11 +27,13 @@ export type LearningOpportunity = {
   registrationUrl: string;
   sourceUrl: string;
   image: string;
+  imageCaption?: string;
   featured: boolean;
   sourceCheckedAt: string;
   aiReviewStatus?: "pending" | "verified" | "needs_review" | "unavailable";
   aiReviewedAt?: string | null;
   aiReviewNote?: string | null;
+  aiReviewModel?: string | null;
   announcementChannel?: string;
   officialAccountUrl?: string | null;
   officialAccountProofUrl?: string | null;

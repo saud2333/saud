@@ -121,6 +121,8 @@ a { color: inherit; text-decoration: none; }
 .feature-card { position: relative; min-height: 400px; overflow: hidden; border: 8px solid var(--surface); border-radius: 25px; color: white; background: var(--navy); box-shadow: var(--shadow); }
 .feature-card:nth-child(n+2) { min-height: 400px; margin-top: 0; }
 .feature-card img, .course-image img, .detail-image img { width: 100%; height: 100%; object-fit: cover; transition: transform 500ms cubic-bezier(.2,.7,.2,1); }
+.feature-card img.provider-logo, .course-image img.provider-logo, .detail-image img.provider-logo { object-fit: contain; background: #fff; }
+.image-caption { position: absolute; bottom: 8px; right: 8px; left: 8px; z-index: 2; padding: 4px 8px; width: fit-content; border-radius: 4px; background: rgba(0, 20, 40, .9); color: #fff; font-size: .75rem; }
 .feature-card:hover img, .course-card:hover .course-image img { transform: scale(1.045); }
 .feature-shade { position: absolute; inset: 0; background: linear-gradient(to top, rgba(45, 28, 120, 0.95) 4%, rgba(45, 28, 120, 0.08) 68%, rgba(45, 28, 120, 0.22)); }
 .feature-top { position: absolute; top: 20px; right: 20px; left: 20px; display: flex; justify-content: space-between; align-items: center; }

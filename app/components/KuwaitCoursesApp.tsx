@@ -44,12 +44,14 @@ const modeLabels: Record<OpportunityMode, string> = {
 };
 
 const statusLabels = {
-  open: "التسجيل متاح",
+  open: "التقديم متاح لدى الجهة",
   verify: "تحقّق من التوفر",
   closed: "التسجيل مغلق",
 };
 
 function assetPath(path: string) {
+  const verifiedMirror = "https://saud2333.github.io/saud/verified/";
+  if (path.startsWith(verifiedMirror)) path = "/verified/" + path.slice(verifiedMirror.length);
   if (!path.startsWith("/")) return path;
   if (typeof window !== "undefined" && window.location.pathname.startsWith("/saud")) return `/saud${path}`;
   return path;
@@ -92,6 +94,7 @@ function fromSupabaseRow(row: Record<string, unknown>): LearningOpportunity {
     registrationUrl: asString(row.registration_url, asString(row.source_url, "#")),
     sourceUrl: asString(row.source_url, "#"),
     image: asString(row.image_url, "/courses-skills.png"),
+    imageCaption: asString(row.image_caption) || undefined,
     featured: Boolean(row.featured),
     sourceCheckedAt: asString(row.source_checked_at, "2026-09-04"),
     aiReviewStatus: ["pending", "verified", "needs_review", "unavailable"].includes(asString(row.ai_review_status))
@@ -99,6 +102,7 @@ function fromSupabaseRow(row: Record<string, unknown>): LearningOpportunity {
       : undefined,
     aiReviewedAt: asString(row.ai_reviewed_at) || null,
     aiReviewNote: asString(row.ai_review_note) || null,
+    aiReviewModel: asString(row.ai_review_model) || null,
     announcementChannel: asString(row.announcement_channel, "website"),
     officialAccountUrl: asString(row.official_account_url) || null,
     officialAccountProofUrl: asString(row.official_account_proof_url) || null,
@@ -124,6 +128,7 @@ function checkedLabel(date: string) {
 }
 
 function aiReviewLabel(item: LearningOpportunity) {
+  if (item.aiReviewStatus === "verified" && item.aiReviewModel === "codex-interactive") return "✓ روجع عند الإضافة";
   if (item.aiReviewStatus === "verified") return "✓ راجعه الذكاء الاصطناعي";
   if (item.aiReviewStatus === "pending") return "◷ بانتظار مراجعة AI";
   return "✓ مصدر رسمي";
@@ -477,7 +482,7 @@ export default function KuwaitCoursesApp() {
         </div>
         <div className="featured-grid">
           {featured.map((item, index) => <article className="feature-card" key={item.id}>
-            <img src={assetPath(item.image)} alt="" />
+            <img src={assetPath(item.image)} alt={item.imageCaption ?? ""} className={item.imageCaption ? "provider-logo" : undefined} />
             <div className="feature-shade" />
             <div className="feature-top"><span>0{index + 1}</span><b>{kindLabels[item.kind]}</b></div>
             <div className="feature-copy">
@@ -491,6 +496,7 @@ export default function KuwaitCoursesApp() {
       </section>}
 
       <section className="catalog-section" id="catalog" ref={catalogRef}>
+        {activeOpportunities.some((item) => item.aiReviewModel === "codex-interactive") && <p className="source-note">أُضيفت هذه البرامج بعد مراجعة صفحاتها الرسمية. الجمع والمراجعة الآلية المستمرة لم يُفعّلا بعد؛ تأكد من توفر المقاعد في موقع الجهة قبل التقديم.</p>}
         <div className="section-title catalog-title">
           <div><p className="section-index">02 / الدليل الكامل</p><h2>الدورات والورش</h2></div>
           <button className="mobile-filter-button" type="button" onClick={() => setFiltersOpen(true)}>الفلاتر {activeFilterCount > 0 && <b>{activeFilterCount}</b>}</button>
@@ -575,7 +581,8 @@ export default function KuwaitCoursesApp() {
             {filtered.length ? <div className="course-grid">
               {filtered.map((item) => <article className="course-card" key={item.id}>
                 <button className="course-image" type="button" onClick={() => setSelected(item)} aria-label={`عرض ${item.title}`}>
-                  <img src={assetPath(item.image)} alt="" />
+                  <img src={assetPath(item.image)} alt={item.imageCaption ?? ""} className={item.imageCaption ? "provider-logo" : undefined} />
+                  {item.imageCaption && <small className="image-caption">{item.imageCaption}</small>}
                   <span className={`course-status ${item.status}`}>{statusLabels[item.status]}</span>
                   <span className="course-kind">{kindLabels[item.kind]}</span>
                 </button>
@@ -644,7 +651,7 @@ export default function KuwaitCoursesApp() {
         <button className="dialog-backdrop" type="button" onClick={() => setSelected(null)} aria-label="إغلاق" />
         <article>
           <button className="detail-close" type="button" onClick={() => setSelected(null)}>×</button>
-          <div className="detail-image"><img src={assetPath(selected.image)} alt="" /><span className={`course-status ${selected.status}`}>{statusLabels[selected.status]}</span></div>
+          <div className="detail-image"><img src={assetPath(selected.image)} alt={selected.imageCaption ?? ""} className={selected.imageCaption ? "provider-logo" : undefined} /><span className={`course-status ${selected.status}`}>{statusLabels[selected.status]}</span>{selected.imageCaption && <small className="image-caption">{selected.imageCaption}</small>}</div>
           <div className="detail-content">
             <p className="course-code"><span>{categoryMeta[selected.category]?.code ?? "LEARN"}</span><b>{selected.category} / {selected.subcategory}</b></p>
             <h2>{selected.title}</h2>
@@ -659,7 +666,7 @@ export default function KuwaitCoursesApp() {
               <div><dt>الرسوم</dt><dd>{priceLabel(selected.priceKwd)}</dd></div>
             </dl>
             <div className="tag-list">{selected.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
-            <div className="verification-note"><span>✓</span><p><b>آخر تحقق من المصدر: {checkedLabel(selected.sourceCheckedAt)}</b><small>{selected.aiReviewStatus === "verified" && selected.aiReviewedAt ? "راجعه الذكاء الاصطناعي بتاريخ " + checkedLabel(selected.aiReviewedAt) + ". " : ""}زر التسجيل يفتح موقع الجهة المنظمة فقط، ولا يحوّلك مِرصاد إلى نموذج خارجي مباشرة.</small></p></div>
+            <div className="verification-note"><span>✓</span><p><b>آخر تحقق من المصدر: {checkedLabel(selected.sourceCheckedAt)}</b><small>{selected.aiReviewModel === "codex-interactive" ? "راجعه مساعد الذكاء الاصطناعي عند الإضافة؛ هذه ليست متابعة آلية مستمرة. " : selected.aiReviewStatus === "verified" && selected.aiReviewedAt ? "راجعه الذكاء الاصطناعي بتاريخ " + checkedLabel(selected.aiReviewedAt) + ". " : ""}زر التسجيل يفتح صفحة التقديم الرسمية لدى الجهة. توفر رابط التقديم لا يضمن المقاعد أو القبول.</small></p></div>
             <div className="detail-actions"><a className="primary-link" href={officialRegistrationDestination(selected)} target="_blank" rel="noreferrer">افتح صفحة التسجيل في موقع الجهة ↗</a><a href={officialSourceDestination(selected)} target="_blank" rel="noreferrer">عرض المصدر</a></div>
           </div>
         </article>
