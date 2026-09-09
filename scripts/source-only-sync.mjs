@@ -3,7 +3,7 @@ import { mirrorEmbeddedImages } from "./embedded-media.mjs";
 import { extractOfficial, verifyOfficial, OFFICIAL_VERIFIER_VERSION } from "./official-extraction.mjs";
 import { officialUrl, REVIEW_POLICY_VERSION } from "./publication-policy.mjs";
 import { documentHash } from "./announcement-extraction.mjs";
-import { databaseRow } from "./sync-opportunities.mjs";
+import { databaseRow } from "./catalog-row.mjs";
 
 async function checked(result) {
   const value = await result;

@@ -13,6 +13,8 @@ const doc = { url, text, channel: "website", candidates: [], images: ["https://a
 const now = Date.parse("2030-09-01T12:00:00Z");
 
 test("required organizations and half-hour source-only schedule are configured", async () => {
+  const implementation = await readFile(new URL("../scripts/source-only-sync.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(implementation, /from ["']\.\/sync-opportunities\.mjs/);
   for (const key of ["coded", "kgbc", "kisr", "sacgc", "kfas"]) assert.ok(defaultSources.some(s => s.key === key));
   const workflow = await readFile(new URL("../.github/workflows/sync-opportunities.yml", import.meta.url), "utf8");
   assert.match(workflow, /cron: "\*\/30 \* \* \* \*"/);
