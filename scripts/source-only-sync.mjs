@@ -16,7 +16,7 @@ export async function syncOfficialSource(client, source, { env = process.env, fe
   const sourceRow = await checked(client.from("learning_sources").upsert({ name: source.name, website_url: source.websiteUrl,
     feed_url: source.feedUrl, parser_key: OFFICIAL_VERIFIER_VERSION, is_active: true }, { onConflict: "website_url" }).select("id").single());
   const cached = await checked(client.from("learning_source_documents").select("document_url,checked_at,rows").eq("source_id", sourceRow.id)) ?? [];
-  const existing = await checked(client.from("learning_opportunities").select("id,title_ar,title_en,source_fingerprint,source_url,is_published,registration_ends_at").eq("source_id", sourceRow.id)) ?? [];
+  const existing = await checked(client.from("learning_opportunities").select("id,title_ar,title_en,source_fingerprint,source_url,is_published,registration_ends_at,featured").eq("source_id", sourceRow.id)) ?? [];
   const current = existing.filter(row => row.is_published || Date.parse(row.registration_ends_at) > Date.now());
   const fetchPage = async (url, channel) => {
     try { const document = await fetchOfficialPage(url, source, fetchImpl); documents.push(document); channels.push({ channel, url, status: "ok" }); }
@@ -56,7 +56,7 @@ export async function syncOfficialSource(client, source, { env = process.env, fe
       const previous = existing.find(item => item.id === row.id);
       // Preserve reviewed Arabic titles only when the official English title is unchanged.
       if (previous?.title_en && previous.title_en === row.title_en) row.title_ar = previous.title_ar;
-      if (previous) row.source_fingerprint = previous.source_fingerprint;
+      if (previous) { row.source_fingerprint = previous.source_fingerprint; row.featured = Boolean(previous.featured); }
       const result = verifyOfficial(row, source, document, Date.parse(checkedAt));
       if (result.registration_url !== document.url) {
         result.publication_issues.push("registration:destination_needs_adapter");

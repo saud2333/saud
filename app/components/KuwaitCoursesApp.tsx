@@ -359,7 +359,8 @@ export default function KuwaitCoursesApp() {
     return () => lifecycle.abort();
   }, []);
 
-  const featured = activeOpportunities.filter((item) => item.featured).slice(0, 3);
+  const curated = activeOpportunities.filter((item) => item.featured);
+  const featured = (curated.length ? curated : [...activeOpportunities].sort((a, b) => Date.parse(a.registrationEndsAt!) - Date.parse(b.registrationEndsAt!))).slice(0, 3);
   const activeFilterCount = [
     category !== "الكل",
     subcategory !== "الكل",
@@ -486,8 +487,8 @@ export default function KuwaitCoursesApp() {
 
       {featured.length > 0 && <section className="featured-section" id="featured">
         <div className="section-title">
-          <div><p className="section-index">01 / مختارات المحرر</p><h2>الأبرز الآن</h2></div>
-          <p>فرص متنوعة من الخطة التدريبية الرسمية، اخترناها لسهولة المقارنة بين المجالات.</p>
+          <div><p className="section-index">01 / {curated.length ? "فرص مختارة" : "قبل إغلاق التسجيل"}</p><h2>{curated.length ? "الأبرز الآن" : "تسجيلها يغلق قريبًا"}</h2></div>
+          <p>{curated.length ? "فرص مختارة من الإعلانات الرسمية." : "الفرص المتاحة مرتبة حسب أقرب موعد لإغلاق التسجيل، وليست ترتيبًا للشعبية أو الجودة."}</p>
         </div>
         <div className="featured-grid">
           {featured.map((item, index) => <article className="feature-card" key={item.id}>
