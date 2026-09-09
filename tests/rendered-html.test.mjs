@@ -5,8 +5,8 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
 
-test("implements the Arabic Mirsad discovery experience", async () => {
-  const [layout, page, app, css, data, migration, automaticSync, officialLinks, aiReviewMigration, aiReviewScript, syncWorkflow] = await Promise.all([
+test("implements the bilingual Mirsad discovery experience", async () => {
+  const [layout, page, app, css, data, migration, automaticSync, officialLinks, aiReviewMigration, aiReviewScript, syncWorkflow, i18n] = await Promise.all([
     read("app/layout.tsx"),
     read("app/page.tsx"),
     read("app/components/KuwaitCoursesApp.tsx"),
@@ -18,18 +18,21 @@ test("implements the Arabic Mirsad discovery experience", async () => {
     read("supabase/migrations/0005_mirsad_ai_review.sql"),
     read("scripts/ai-review.mjs"),
     read(".github/workflows/sync-opportunities.yml"),
+    read("app/lib/mirsad-i18n.ts"),
   ]);
   assert.match(layout, /مرصاد \| دليل دورات وورش الكويت/);
   assert.match(layout, /lang="ar" dir="rtl"/);
+  assert.match(layout, /mirsad-language/);
+  assert.match(layout, /document\.documentElement\.dir=l==='ar'\?'rtl':'ltr'/);
   assert.match(page, /KuwaitCoursesApp/);
-  assert.match(app, /تعلّم مهارات المستقبل/);
+  assert.match(i18n, /تعلّم مهارات المستقبل/);
   assert.match(app, /filter_learning_opportunities/);
-  assert.match(app, /المجال والتخصص/);
-  assert.match(app, /الجهة المنظمة/);
-  assert.match(app, /اكتب العمر/);
-  assert.match(app, /مُرشد مِرصاد/);
+  assert.match(i18n, /المجال والتخصص/);
+  assert.match(i18n, /الجهة المنظمة/);
+  assert.match(i18n, /اكتب العمر/);
+  assert.match(i18n, /مُرشد مِرصاد/);
   assert.match(app, /learning-opportunities-live/);
-  assert.match(app, /if \(price === null\) return "غير معلن من الجهة"/);
+  assert.match(i18n, /if \(price === null\) return language === "ar" \? "غير معلن من الجهة"/);
   assert.match(app, /setup_required/);
   assert.match(app, /awaiting_sync/);
   assert.match(data, /Service Robotics for Industry/);
@@ -43,14 +46,14 @@ test("implements the Arabic Mirsad discovery experience", async () => {
   assert.match(data, /14–17 سنة/);
   assert.doesNotMatch(data, /forms\.office\.com/);
   assert.match(app, /officialRegistrationDestination/);
-  assert.match(app, /موقع الجهة للتسجيل/);
+  assert.match(i18n, /موقع الجهة للتسجيل/);
   assert.match(migration, /learning_opportunities_public_read/);
   assert.match(migration, /supabase_realtime/);
   assert.match(automaticSync, /archive_expired_learning_opportunities/);
   assert.match(automaticSync, /registration_ends_at/);
   assert.match(officialLinks, /normalize_learning_opportunity_registration/);
   assert.match(officialLinks, /kuwaitgbc\\\.com/);
-  assert.match(app, /راجعه الذكاء الاصطناعي/);
+  assert.match(i18n, /راجعه الذكاء الاصطناعي/);
   assert.match(aiReviewMigration, /ai_review_status/);
   assert.match(aiReviewMigration, /content_hash/);
   assert.match(aiReviewScript, /api\.openai\.com\/v1\/responses/);
@@ -61,7 +64,15 @@ test("implements the Arabic Mirsad discovery experience", async () => {
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /brand-bar-drift/);
   assert.match(css, /html\[data-theme="dark"\]/);
+  assert.match(css, /html\[dir="ltr"\]/);
   assert.match(layout, /mirsad-theme/);
+  assert.match(app, /className="language-toggle"/);
+  assert.match(app, /setSiteLanguage/);
+  assert.match(app, /document\.documentElement\.dir = language === "ar" \? "rtl" : "ltr"/);
+  assert.match(i18n, /Build skills for the future/);
+  assert.match(i18n, /Courses and workshops/);
+  assert.match(i18n, /Official registration/);
+  assert.match(i18n, /Course titles, descriptions and official details remain/);
 });
 
 test("includes all primary pages and API surfaces", async () => {

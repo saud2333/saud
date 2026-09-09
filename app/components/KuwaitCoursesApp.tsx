@@ -6,6 +6,21 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "../lib/supabase";
 import { emptyCatalogMode } from "../lib/catalog-status.mjs";
 import {
+  ageLabel,
+  aiReviewLabel,
+  categoryBlurb,
+  categoryLabel,
+  checkedLabel,
+  kindLabel,
+  localizedText,
+  modeLabel,
+  opportunityTitle,
+  priceLabel,
+  statusLabel,
+  type SiteLanguage,
+  uiCopy,
+} from "../lib/mirsad-i18n";
+import {
   categories,
   categoryMeta,
   type LearningOpportunity,
@@ -33,24 +48,6 @@ declare global {
     };
   }
 }
-
-const kindLabels: Record<OpportunityKind, string> = {
-  course: "دورة",
-  workshop: "ورشة",
-  camp: "معسكر",
-};
-
-const modeLabels: Record<OpportunityMode, string> = {
-  in_person: "حضوري",
-  online: "عن بُعد",
-  hybrid: "هجين",
-};
-
-const statusLabels = {
-  open: "التقديم متاح لدى الجهة",
-  verify: "تحقّق من التوفر",
-  closed: "التسجيل مغلق",
-};
 
 function assetPath(path: string) {
   const verifiedMirror = "https://saud2333.github.io/saud/verified/";
@@ -119,25 +116,6 @@ function ageMatches(item: LearningOpportunity, age: number | null) {
   if (age === null) return true;
   if (item.minAge === null && item.maxAge === null) return false;
   return (item.minAge === null || age >= item.minAge) && (item.maxAge === null || age <= item.maxAge);
-}
-
-function priceLabel(price: number | null) {
-  if (price === null) return "غير معلن من الجهة";
-  if (price === 0) return "مجاني";
-  return `${new Intl.NumberFormat("ar-KW", { maximumFractionDigits: 3 }).format(price)} د.ك`;
-}
-
-function checkedLabel(date: string) {
-  const parsed = new Date(date.includes("T") ? date : date + "T12:00:00");
-  return Number.isNaN(parsed.getTime()) ? date : new Intl.DateTimeFormat("ar-KW", { day: "numeric", month: "short", year: "numeric" }).format(parsed);
-}
-
-function aiReviewLabel(item: LearningOpportunity) {
-  if (item.verificationMethod === "official_source") return "✓ فحص المصدر الرسمي";
-  if (item.aiReviewStatus === "verified" && item.aiReviewModel === "codex-interactive") return "✓ روجع عند الإضافة";
-  if (item.aiReviewStatus === "verified") return "✓ راجعه الذكاء الاصطناعي";
-  if (item.aiReviewStatus === "pending") return "◷ بانتظار مراجعة AI";
-  return "✓ مصدر رسمي";
 }
 
 function organizerMark(organizer: string) {
@@ -214,17 +192,22 @@ export default function KuwaitCoursesApp() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selection, setSelected] = useState<LearningOpportunity | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [language, setLanguage] = useState<SiteLanguage>("ar");
   const [botOpen, setBotOpen] = useState(false);
   const [botText, setBotText] = useState("");
-  const [botReply, setBotReply] = useState("قل لي عمرك والمجال الذي تحبه، وسأختصر لك الخيارات.");
+  const [botReplyMode, setBotReplyMode] = useState<"intro" | "found" | "empty">("intro");
   const [botResults, setBotResults] = useState<LearningOpportunity[]>([]);
   const [clock, setClock] = useState(() => Date.now());
   const catalogRef = useRef<HTMLElement>(null);
+  const copy = uiCopy[language];
+  const locale = language === "ar" ? "ar-KW" : "en-KW";
+  const directionArrow = language === "ar" ? "←" : "→";
 
   useEffect(() => {
     const saved = window.localStorage.getItem("mirsad-theme");
     const preferred = saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
-    const timer = window.setTimeout(() => setTheme(preferred), 0);
+    const savedLanguage = window.localStorage.getItem("mirsad-language") === "en" ? "en" : "ar";
+    const timer = window.setTimeout(() => { setTheme(preferred); setLanguage(savedLanguage); }, 0);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -232,6 +215,12 @@ export default function KuwaitCoursesApp() {
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
   }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.lang = language;
+    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
+    document.documentElement.dataset.language = language;
+  }, [language]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 60_000);
@@ -292,11 +281,11 @@ export default function KuwaitCoursesApp() {
   const governors = useMemo(() => ["الكل", ...Array.from(new Set(activeOpportunities.map((item) => item.governorate)))], [activeOpportunities]);
   const subcategories = useMemo(() => {
     const candidates = category === "الكل" ? activeOpportunities : activeOpportunities.filter((item) => item.category === category);
-    return ["الكل", ...Array.from(new Set(candidates.map((item) => item.subcategory))).sort((a, b) => a.localeCompare(b, "ar"))];
-  }, [activeOpportunities, category]);
+    return ["الكل", ...Array.from(new Set(candidates.map((item) => item.subcategory))).sort((a, b) => localizedText(a, language).localeCompare(localizedText(b, language), language))];
+  }, [activeOpportunities, category, language]);
   const organizers = useMemo(
-    () => ["الكل", ...Array.from(new Set([...monitoredOrganizers, ...activeOpportunities.map((item) => item.organizer)])).sort((a, b) => a.localeCompare(b, "ar"))],
-    [activeOpportunities],
+    () => ["الكل", ...Array.from(new Set([...monitoredOrganizers, ...activeOpportunities.map((item) => item.organizer)])).sort((a, b) => localizedText(a, language).localeCompare(localizedText(b, language), language))],
+    [activeOpportunities, language],
   );
 
   const filtered = useMemo(() => {
@@ -312,10 +301,10 @@ export default function KuwaitCoursesApp() {
       .filter((item) => !needle || [item.title, item.titleEn, item.description, item.organizer, item.category, item.subcategory, ...item.tags].join(" ").toLowerCase().includes(needle))
       .sort((a, b) => {
         if (sort === "price") return (a.priceKwd ?? Number.MAX_SAFE_INTEGER) - (b.priceKwd ?? Number.MAX_SAFE_INTEGER);
-        if (sort === "title") return a.title.localeCompare(b.title, "ar");
+        if (sort === "title") return opportunityTitle(a, language).localeCompare(opportunityTitle(b, language), language);
         return Number(b.featured) - Number(a.featured);
       });
-  }, [activeOpportunities, age, category, governorate, kind, mode, query, selectedOrganizer, sort, subcategory]);
+  }, [activeOpportunities, age, category, governorate, kind, language, mode, query, selectedOrganizer, sort, subcategory]);
 
   useEffect(() => {
     const context = document.modelContext;
@@ -324,8 +313,8 @@ export default function KuwaitCoursesApp() {
     try {
       void Promise.resolve(context.registerTool({
         name: "filter_learning_opportunities",
-        title: "فلترة فرص التعلّم",
-        description: "يطبّق البحث والمجال والعمر على دليل دورات وورش الكويت الظاهر في الصفحة.",
+        title: language === "ar" ? "فلترة فرص التعلّم" : "Filter learning opportunities",
+        description: language === "ar" ? "يطبّق البحث والمجال والعمر على دليل دورات وورش الكويت الظاهر في الصفحة." : "Applies search, field and age filters to the visible Kuwait learning directory.",
         inputSchema: {
           type: "object",
           properties: {
@@ -353,7 +342,7 @@ export default function KuwaitCoursesApp() {
       // WebMCP is progressive enhancement; the visual controls remain the source of truth.
     }
     return () => lifecycle.abort();
-  }, []);
+  }, [language]);
 
   const curated = activeOpportunities.filter((item) => item.featured);
   const featured = (curated.length ? curated : [...activeOpportunities].sort((a, b) => Date.parse(a.registrationEndsAt!) - Date.parse(b.registrationEndsAt!))).slice(0, 3);
@@ -372,6 +361,13 @@ export default function KuwaitCoursesApp() {
     document.documentElement.dataset.theme = next;
     document.documentElement.style.colorScheme = next;
     localStorage.setItem("mirsad-theme", next);
+  }
+
+  function setSiteLanguage(next: SiteLanguage) {
+    setLanguage(next);
+    document.documentElement.lang = next;
+    document.documentElement.dir = next === "ar" ? "rtl" : "ltr";
+    localStorage.setItem("mirsad-language", next);
   }
 
   function clearFilters() {
@@ -393,15 +389,15 @@ export default function KuwaitCoursesApp() {
     let nextKind: OpportunityKind | "all" = "all";
     let nextMode: OpportunityMode | "all" = "all";
     let nextAge: number | null = null;
-    if (/ذكاء|برمج|روبوت|تقني/.test(prompt)) nextCategory = "التقنية والذكاء الاصطناعي";
-    else if (/هندس|طاقة|كهرب|مدني/.test(prompt)) nextCategory = "الهندسة والطاقة";
-    else if (/صحة|إسعاف|سلامة/.test(prompt)) nextCategory = "الصحة والسلامة";
-    else if (/فن|خزف|إبداع|تصميم/.test(prompt)) nextCategory = "الفنون والإبداع";
-    else if (/إدارة|مهار|عرض|كتابة/.test(prompt)) nextCategory = "الأعمال والمهارات";
-    if (/ورشة/.test(prompt)) nextKind = "workshop";
-    if (/معسكر/.test(prompt)) nextKind = "camp";
-    if (/أونلاين|اونلاين|عن بعد/.test(prompt)) nextMode = "online";
-    if (/حضوري/.test(prompt)) nextMode = "in_person";
+    if (/ذكاء|برمج|روبوت|تقني|\bai\b|artificial intelligence|program|coding|robot|tech/i.test(prompt)) nextCategory = "التقنية والذكاء الاصطناعي";
+    else if (/هندس|طاقة|كهرب|مدني|engineer|energy|electrical|civil/i.test(prompt)) nextCategory = "الهندسة والطاقة";
+    else if (/صحة|إسعاف|سلامة|health|first aid|safety/i.test(prompt)) nextCategory = "الصحة والسلامة";
+    else if (/فن|خزف|إبداع|تصميم|art|pottery|creative|design/i.test(prompt)) nextCategory = "الفنون والإبداع";
+    else if (/إدارة|مهار|عرض|كتابة|business|management|skill|leadership|writing/i.test(prompt)) nextCategory = "الأعمال والمهارات";
+    if (/ورشة|workshop/i.test(prompt)) nextKind = "workshop";
+    if (/معسكر|bootcamp|camp/i.test(prompt)) nextKind = "camp";
+    if (/أونلاين|اونلاين|عن بعد|online|remote/i.test(prompt)) nextMode = "online";
+    if (/حضوري|in[ -]?person|onsite/i.test(prompt)) nextMode = "in_person";
     const foundAge = prompt.match(/\d{1,2}/)?.[0];
     if (foundAge) nextAge = Math.min(65, Math.max(6, Number(foundAge)));
     const matches = activeOpportunities.filter((item) =>
@@ -416,7 +412,7 @@ export default function KuwaitCoursesApp() {
     setMode(nextMode);
     setAge(nextAge);
     setBotResults(matches);
-    setBotReply(matches.length ? `وجدت ${matches.length} فرص قريبة من طلبك. طبّقت الفلاتر على الدليل أيضًا.` : "ما لقيت تطابقًا دقيقًا الآن. جرّب مجالًا أوسع أو اختر «كل الفرص». ");
+    setBotReplyMode(matches.length ? "found" : "empty");
   }
 
   function handleBotSubmit(event: FormEvent) {
@@ -424,21 +420,28 @@ export default function KuwaitCoursesApp() {
     askBot(botText);
   }
 
+  const botReply = botReplyMode === "intro"
+    ? copy.botIntro
+    : botReplyMode === "found"
+      ? copy.botFound.replace("{count}", currentBotResults.length.toLocaleString(locale))
+      : copy.botNoMatch;
+
   return (
-    <main className="mirsad-shell">
+    <main className="mirsad-shell" lang={language} dir={language === "ar" ? "rtl" : "ltr"}>
       <header className="site-header">
-        <a className="brand" href="#top" aria-label="مِرصاد — الصفحة الرئيسية">
+        <a className="brand" href="#top" aria-label={copy.homeAria}>
           <img className="mirsad-mark" src={assetPath("/mirsad-mark.svg")} width="44" height="44" alt="" />
-          <span><b>مرصاد</b><small>فرص التعلّم في الكويت</small></span>
+          <span><b>{copy.brand}</b><small>{copy.brandSubtitle}</small></span>
         </a>
-        <nav aria-label="التنقل الرئيسي">
-          <a href="#featured">الأبرز</a>
-          <a href="#catalog">كل الفرص</a>
-          <a href="#sources">المصادر</a>
+        <nav aria-label={copy.mainNav}>
+          <a href="#featured">{copy.featuredNav}</a>
+          <a href="#catalog">{copy.catalogNav}</a>
+          <a href="#sources">{copy.sourcesNav}</a>
         </nav>
         <div className="header-actions">
-          <span className={`sync-state ${dataMode}`}><i />{dataMode === "live" ? "متصل بالدليل" : dataMode === "connecting" ? "فحص التحديثات" : dataMode === "setup_required" ? "يلزم إكمال الربط" : dataMode === "awaiting_sync" ? "بانتظار تفعيل التحديثات" : "تعذّر تحديث الدليل"}</span>
-          <button className="theme-toggle" type="button" aria-label={theme === "light" ? "تفعيل الوضع الداكن" : "تفعيل الوضع الفاتح"} onClick={() => setSiteTheme(theme === "light" ? "dark" : "light")}>
+          <span className={`sync-state ${dataMode}`}><i />{dataMode === "live" ? copy.syncLive : dataMode === "connecting" ? copy.syncConnecting : dataMode === "setup_required" ? copy.syncSetup : dataMode === "awaiting_sync" ? copy.syncAwaiting : copy.syncUnavailable}</span>
+          <button className="language-toggle" type="button" aria-label={copy.languageAria} onClick={() => setSiteLanguage(language === "ar" ? "en" : "ar")}>{copy.languageLabel}</button>
+          <button className="theme-toggle" type="button" aria-label={theme === "light" ? copy.darkMode : copy.lightMode} onClick={() => setSiteTheme(theme === "light" ? "dark" : "light")}>
             <span>{theme === "light" ? "☾" : "☀"}</span>
           </button>
         </div>
@@ -447,35 +450,35 @@ export default function KuwaitCoursesApp() {
       <section className="discovery-hero" id="top">
         <div className="hero-grid" aria-hidden="true" />
         <div className="hero-content">
-          <p className="kicker"><span>فرص موثّقة من الجهات الرسمية</span></p>
-          <h1>تعلّم مهارات المستقبل<br /><em>من فرص الكويت.</em></h1>
-          <p className="hero-copy">الدورات والورش المعلنة رسميًا والمفتوح تسجيلها. ابحث بالعمر أو المجال أو المكان، وسجّل من موقع الجهة الرسمي.</p>
+          <p className="kicker"><span>{copy.kicker}</span></p>
+          <h1>{copy.heroTitle}<br /><em>{copy.heroAccent}</em></h1>
+          <p className="hero-copy">{copy.heroCopy}</p>
           <div className="hero-search" role="search">
             <span className="search-icon">⌕</span>
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ابحث عن روبوتات، إسعافات، تصميم…" aria-label="البحث في الدورات والورش" />
-            {query && <button type="button" onClick={() => setQuery("")} aria-label="مسح البحث">×</button>}
-            <button className="search-submit" type="button" onClick={() => catalogRef.current?.scrollIntoView({ behavior: "smooth" })}>ابحث</button>
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.searchPlaceholder} aria-label={copy.searchAria} />
+            {query && <button type="button" onClick={() => setQuery("")} aria-label={copy.clearSearch}>×</button>}
+            <button className="search-submit" type="button" onClick={() => catalogRef.current?.scrollIntoView({ behavior: "smooth" })}>{copy.search}</button>
           </div>
           <div className="hero-notes">
-            <span><b>{dataMode === "live" ? activeOpportunities.length : "—"}</b> {dataMode === "live" ? "فرصة متاحة الآن" : "لم يكتمل التحقق من الفرص"}</span>
-            <span><b>{new Set(activeOpportunities.map((item) => item.category)).size}</b> مجالات</span>
-            <span><b>تلقائي</b> إخفاء التسجيل المنتهي</span>
+            <span><b>{dataMode === "live" ? activeOpportunities.length.toLocaleString(locale) : "—"}</b> {dataMode === "live" ? copy.availableNow : copy.notVerified}</span>
+            <span><b>{new Set(activeOpportunities.map((item) => item.category)).size.toLocaleString(locale)}</b> {copy.fields}</span>
+            <span><b>{copy.automatic}</b> {copy.expiredHidden}</span>
           </div>
         </div>
         <aside className="bot-preview">
-          <img src={assetPath("/courses-tech.png")} alt="متعلمون في مختبر تقني" />
+          <img src={assetPath("/courses-tech.png")} alt={copy.heroImageAlt} />
           <div className="bot-orbit"><i /><i /><span>✦</span></div>
-          <div className="bot-card-copy"><div><small>مُرشد مِرصاد</small><h2>شنو يناسبك؟</h2><p>اكتب عمرك واهتمامك، وأنا أرتّب لك الفرص المتاحة الآن.</p></div><button type="button" onClick={() => setBotOpen(true)}>اسأل المرشد <span>←</span></button></div>
+          <div className="bot-card-copy"><div><small>{copy.guide}</small><h2>{copy.guideQuestion}</h2><p>{copy.guideCopy}</p></div><button type="button" onClick={() => setBotOpen(true)}>{copy.askGuide} <span>{directionArrow}</span></button></div>
         </aside>
       </section>
 
-      <section className="category-strip" aria-label="مجالات التعلّم">
+      <section className="category-strip" aria-label={copy.learningFields}>
         {categories.slice(1).map((item) => {
           const meta = categoryMeta[item];
           const count = activeOpportunities.filter((opportunity) => opportunity.category === item).length;
           return <button type="button" key={item} className={category === item ? "active" : ""} onClick={() => { setCategory(item); setSubcategory("الكل"); catalogRef.current?.scrollIntoView({ behavior: "smooth" }); }}>
             <span className="category-icon">{meta.icon}</span>
-            <span><small>{meta.code} · {count.toLocaleString("ar-KW")}</small><b>{item}</b><em>{meta.blurb}</em></span>
+            <span><small>{meta.code} · {count.toLocaleString(locale)}</small><b>{categoryLabel(item, language)}</b><em>{categoryBlurb(item, meta.blurb, language)}</em></span>
             <i>↗</i>
           </button>;
         })}
@@ -483,207 +486,208 @@ export default function KuwaitCoursesApp() {
 
       {featured.length > 0 && <section className="featured-section" id="featured">
         <div className="section-title">
-          <div><p className="section-index">01 / {curated.length ? "فرص مختارة" : "قبل إغلاق التسجيل"}</p><h2>{curated.length ? "الأبرز الآن" : "تسجيلها يغلق قريبًا"}</h2></div>
-          <p>{curated.length ? "فرص مختارة من الإعلانات الرسمية." : "الفرص المتاحة مرتبة حسب أقرب موعد لإغلاق التسجيل، وليست ترتيبًا للشعبية أو الجودة."}</p>
+          <div><p className="section-index">01 / {curated.length ? copy.selectedOpportunities : copy.beforeClosing}</p><h2>{curated.length ? copy.highlightedNow : copy.closingSoon}</h2></div>
+          <p>{curated.length ? copy.curatedDescription : copy.closingDescription}</p>
         </div>
         <div className="featured-grid">
           {featured.map((item, index) => <article className="feature-card" key={item.id}>
             <img src={assetPath(item.image)} alt={item.imageCaption ?? ""} className={item.imageCaption ? "provider-logo" : undefined} />
             <div className="feature-shade" />
-            <div className="feature-top"><span>0{index + 1}</span><b>{kindLabels[item.kind]}</b></div>
+            <div className="feature-top"><span>0{index + 1}</span><b>{kindLabel(item.kind, language)}</b></div>
             <div className="feature-copy">
-              <small>{item.category} · {item.subcategory}</small>
-              <h3>{item.title}</h3>
-              <p>{item.duration} · {item.ageLabel}</p>
-              <button type="button" onClick={() => setSelected(item)}>عرض التفاصيل <span>←</span></button>
+              <small>{categoryLabel(item.category, language)} · {localizedText(item.subcategory, language)}</small>
+              <h3 dir="auto">{opportunityTitle(item, language)}</h3>
+              <p dir="auto">{localizedText(item.duration, language)} · {ageLabel(item, language)}</p>
+              <button type="button" onClick={() => setSelected(item)}>{copy.viewDetails} <span>{directionArrow}</span></button>
             </div>
           </article>)}
         </div>
       </section>}
 
       <section className="catalog-section" id="catalog" ref={catalogRef}>
-        {activeOpportunities.some((item) => item.aiReviewModel === "codex-interactive") && <p className="source-note">أُضيفت هذه البرامج بعد مراجعة صفحاتها الرسمية. الجمع والمراجعة الآلية المستمرة لم يُفعّلا بعد؛ تأكد من توفر المقاعد في موقع الجهة قبل التقديم.</p>}
+        {activeOpportunities.some((item) => item.aiReviewModel === "codex-interactive") && <p className="catalog-language-note">{copy.initialReviewNote}</p>}
+        {language === "en" && <p className="catalog-language-note">{copy.officialLanguageNote}</p>}
         <div className="section-title catalog-title">
-          <div><p className="section-index">02 / الدليل الكامل</p><h2>الدورات والورش</h2></div>
-          <button className="mobile-filter-button" type="button" onClick={() => setFiltersOpen(true)}>الفلاتر {activeFilterCount > 0 && <b>{activeFilterCount}</b>}</button>
+          <div><p className="section-index">02 / {copy.fullDirectory}</p><h2>{copy.coursesAndWorkshops}</h2></div>
+          <button className="mobile-filter-button" type="button" onClick={() => setFiltersOpen(true)}>{copy.filters} {activeFilterCount > 0 && <b>{activeFilterCount.toLocaleString(locale)}</b>}</button>
         </div>
         <div className="catalog-layout">
-          <aside className={`filter-panel ${filtersOpen ? "open" : ""}`} aria-label="فلاتر الدورات">
-            <div className="filter-mobile-head"><b>فلترة النتائج</b><button type="button" onClick={() => setFiltersOpen(false)}>×</button></div>
-            <div className="filter-heading"><span>FILTER / 01</span><button type="button" onClick={clearFilters}>مسح الكل</button></div>
+          <aside className={`filter-panel ${filtersOpen ? "open" : ""}`} aria-label={copy.courseFilters}>
+            <div className="filter-mobile-head"><b>{copy.filterResults}</b><button type="button" onClick={() => setFiltersOpen(false)} aria-label={copy.close}>×</button></div>
+            <div className="filter-heading"><span>FILTER / 01</span><button type="button" onClick={clearFilters}>{copy.clearAll}</button></div>
             <fieldset>
-              <legend>المجال والتخصص</legend>
-              <label className="select-label">المجال
+              <legend>{copy.fieldAndSpecialty}</legend>
+              <label className="select-label">{copy.field}
                 <select value={category} onChange={(event) => { setCategory(event.target.value); setSubcategory("الكل"); }}>
-                  {categories.map((item) => <option key={item}>{item}</option>)}
+                  {categories.map((item) => <option value={item} key={item}>{categoryLabel(item, language)}</option>)}
                 </select>
               </label>
-              <label className="select-label">التخصص الدقيق
+              <label className="select-label">{copy.exactSpecialty}
                 <select value={subcategory} onChange={(event) => setSubcategory(event.target.value)}>
-                  {subcategories.map((item) => <option key={item}>{item}</option>)}
+                  {subcategories.map((item) => <option value={item} key={item}>{localizedText(item, language)}</option>)}
                 </select>
               </label>
             </fieldset>
             <fieldset>
-              <legend>الجهة المنظمة</legend>
-              <select value={selectedOrganizer} onChange={(event) => setSelectedOrganizer(event.target.value)} aria-label="الجهة المنظمة">
-                {organizers.map((item) => <option key={item}>{item}</option>)}
+              <legend>{copy.organizer}</legend>
+              <select value={selectedOrganizer} onChange={(event) => setSelectedOrganizer(event.target.value)} aria-label={copy.organizer}>
+                {organizers.map((item) => <option value={item} key={item}>{localizedText(item, language)}</option>)}
               </select>
             </fieldset>
             <fieldset>
-              <legend>نوع الفرصة</legend>
+              <legend>{copy.opportunityType}</legend>
               <div className="option-row">
-                {([ ["all", "الكل"], ["course", "دورة"], ["workshop", "ورشة"], ["camp", "معسكر"] ] as const).map(([value, label]) => <button key={value} className={kind === value ? "active" : ""} type="button" onClick={() => setKind(value)}>{label}</button>)}
+                {(["all", "course", "workshop", "camp"] as const).map((value) => <button key={value} className={kind === value ? "active" : ""} type="button" onClick={() => setKind(value)}>{value === "all" ? copy.all : kindLabel(value, language)}</button>)}
               </div>
             </fieldset>
             <fieldset>
-              <legend>العمر المستهدف</legend>
+              <legend>{copy.targetAge}</legend>
               <div className="age-control">
-                <div><b>{age === null ? "كل الأعمار" : `${age} سنة`}</b><button type="button" onClick={() => setAge(null)}>الكل</button></div>
-                <input type="range" min="6" max="65" step="1" value={age ?? 25} onChange={(event) => setAge(Number(event.target.value))} aria-label="العمر" />
+                <div><b>{age === null ? copy.allAges : `${age.toLocaleString(locale)} ${copy.years}`}</b><button type="button" onClick={() => setAge(null)}>{copy.all}</button></div>
+                <input type="range" min="6" max="65" step="1" value={age ?? 25} onChange={(event) => setAge(Number(event.target.value))} aria-label={copy.age} />
                 <div className="range-labels"><span>6</span><span>18</span><span>35</span><span>65+</span></div>
                 <div className="age-entry">
-                  <label>اكتب العمر
-                    <input type="number" min="6" max="65" inputMode="numeric" value={age ?? ""} placeholder="مثال: 14" onChange={(event) => setAge(event.target.value ? Math.min(65, Math.max(6, Number(event.target.value))) : null)} />
+                  <label>{copy.enterAge}
+                    <input type="number" min="6" max="65" inputMode="numeric" value={age ?? ""} placeholder={copy.ageExample} onChange={(event) => setAge(event.target.value ? Math.min(65, Math.max(6, Number(event.target.value))) : null)} />
                   </label>
-                  <div className="age-presets" aria-label="أعمار سريعة">
+                  <div className="age-presets" aria-label={copy.quickAges}>
                     {[6, 10, 14, 18, 25].map((value) => <button key={value} className={age === value ? "active" : ""} type="button" onClick={() => setAge(value)}>{value}</button>)}
                   </div>
                 </div>
-                {age !== null && <small>تُخفى الفرص التي لم يعلن منظمها العمر لتفادي التخمين.</small>}
+                {age !== null && <small>{copy.unknownAgeHidden}</small>}
               </div>
             </fieldset>
             <fieldset>
-              <legend>طريقة الحضور</legend>
-              <label><input type="radio" name="mode" checked={mode === "all"} onChange={() => setMode("all")} /> الكل</label>
-              <label><input type="radio" name="mode" checked={mode === "in_person"} onChange={() => setMode("in_person")} /> حضوري</label>
-              <label><input type="radio" name="mode" checked={mode === "online"} onChange={() => setMode("online")} /> عن بُعد</label>
-              <label><input type="radio" name="mode" checked={mode === "hybrid"} onChange={() => setMode("hybrid")} /> هجين</label>
+              <legend>{copy.attendance}</legend>
+              <label><input type="radio" name="mode" checked={mode === "all"} onChange={() => setMode("all")} /> {copy.all}</label>
+              <label><input type="radio" name="mode" checked={mode === "in_person"} onChange={() => setMode("in_person")} /> {modeLabel("in_person", language)}</label>
+              <label><input type="radio" name="mode" checked={mode === "online"} onChange={() => setMode("online")} /> {modeLabel("online", language)}</label>
+              <label><input type="radio" name="mode" checked={mode === "hybrid"} onChange={() => setMode("hybrid")} /> {modeLabel("hybrid", language)}</label>
             </fieldset>
             <fieldset>
-              <legend>المحافظة</legend>
-              <select value={governorate} onChange={(event) => setGovernorate(event.target.value)}>{governors.map((item) => <option key={item}>{item}</option>)}</select>
+              <legend>{copy.governorate}</legend>
+              <select value={governorate} onChange={(event) => setGovernorate(event.target.value)}>{governors.map((item) => <option value={item} key={item}>{localizedText(item, language)}</option>)}</select>
             </fieldset>
-            <p className="auto-filter-note"><i /> التسجيل المنتهي يختفي تلقائيًا من النتائج.</p>
-            <button className="apply-mobile" type="button" onClick={() => setFiltersOpen(false)}>عرض {filtered.length.toLocaleString("ar-KW")} نتيجة</button>
+            <p className="auto-filter-note"><i /> {copy.expiredAutoHidden}</p>
+            <button className="apply-mobile" type="button" onClick={() => setFiltersOpen(false)}>{copy.show} {filtered.length.toLocaleString(locale)} {copy.result}</button>
           </aside>
-          {filtersOpen && <button className="filter-backdrop" type="button" aria-label="إغلاق الفلاتر" onClick={() => setFiltersOpen(false)} />}
+          {filtersOpen && <button className="filter-backdrop" type="button" aria-label={copy.close} onClick={() => setFiltersOpen(false)} />}
 
           <div className="catalog-results">
             <div className="results-toolbar">
-              <div><b>{dataMode === "live" ? filtered.length.toLocaleString("ar-KW") : "—"}</b> فرصة مطابقة {activeFilterCount > 0 && <span>· {activeFilterCount} فلاتر مفعّلة</span>}</div>
-              <label>ترتيب <select value={sort} onChange={(event) => setSort(event.target.value as SortMode)}><option value="featured">الأبرز</option><option value="price">الأقل سعرًا</option><option value="title">أبجديًا</option></select></label>
+              <div><b>{dataMode === "live" ? filtered.length.toLocaleString(locale) : "—"}</b> {copy.matching} {activeFilterCount > 0 && <span>· {activeFilterCount.toLocaleString(locale)} {copy.activeFilters}</span>}</div>
+              <label>{copy.sort} <select value={sort} onChange={(event) => setSort(event.target.value as SortMode)}><option value="featured">{copy.sortFeatured}</option><option value="price">{copy.sortPrice}</option><option value="title">{copy.sortTitle}</option></select></label>
             </div>
             <div className="active-filters">
-              {category !== "الكل" && <button type="button" onClick={() => setCategory("الكل")}>{category} ×</button>}
-              {subcategory !== "الكل" && <button type="button" onClick={() => setSubcategory("الكل")}>{subcategory} ×</button>}
-              {selectedOrganizer !== "الكل" && <button type="button" onClick={() => setSelectedOrganizer("الكل")}>{selectedOrganizer} ×</button>}
-              {kind !== "all" && <button type="button" onClick={() => setKind("all")}>{kindLabels[kind]} ×</button>}
-              {mode !== "all" && <button type="button" onClick={() => setMode("all")}>{modeLabels[mode]} ×</button>}
-              {governorate !== "الكل" && <button type="button" onClick={() => setGovernorate("الكل")}>{governorate} ×</button>}
-              {age !== null && <button type="button" onClick={() => setAge(null)}>عمر {age} ×</button>}
+              {category !== "الكل" && <button type="button" onClick={() => setCategory("الكل")}>{categoryLabel(category, language)} ×</button>}
+              {subcategory !== "الكل" && <button type="button" onClick={() => setSubcategory("الكل")}>{localizedText(subcategory, language)} ×</button>}
+              {selectedOrganizer !== "الكل" && <button type="button" onClick={() => setSelectedOrganizer("الكل")}>{localizedText(selectedOrganizer, language)} ×</button>}
+              {kind !== "all" && <button type="button" onClick={() => setKind("all")}>{kindLabel(kind, language)} ×</button>}
+              {mode !== "all" && <button type="button" onClick={() => setMode("all")}>{modeLabel(mode, language)} ×</button>}
+              {governorate !== "الكل" && <button type="button" onClick={() => setGovernorate("الكل")}>{localizedText(governorate, language)} ×</button>}
+              {age !== null && <button type="button" onClick={() => setAge(null)}>{copy.age} {age.toLocaleString(locale)} ×</button>}
               {query && <button type="button" onClick={() => setQuery("")}>«{query}» ×</button>}
             </div>
             {filtered.length ? <div className="course-grid">
               {filtered.map((item) => <article className="course-card" key={item.id}>
-                <button className="course-image" type="button" onClick={() => setSelected(item)} aria-label={`عرض ${item.title}`}>
+                <button className="course-image" type="button" onClick={() => setSelected(item)} aria-label={`${copy.viewCourse} ${opportunityTitle(item, language)}`}>
                   <img src={assetPath(item.image)} alt={item.imageCaption ?? ""} className={item.imageCaption ? "provider-logo" : undefined} />
                   {item.imageCaption && <small className="image-caption">{item.imageCaption}</small>}
-                  <span className={`course-status ${item.status}`}>{statusLabels[item.status]}</span>
-                  <span className="course-kind">{kindLabels[item.kind]}</span>
+                  <span className={`course-status ${item.status}`}>{statusLabel(item.status, language)}</span>
+                  <span className="course-kind">{kindLabel(item.kind, language)}</span>
                 </button>
                 <div className="course-body">
-                  <div className="course-code"><span>{categoryMeta[item.category]?.code ?? "LEARN"}</span><b>{item.subcategory}</b></div>
-                  <h3>{item.title}</h3>
-                  <p>{item.description}</p>
+                  <div className="course-code"><span>{categoryMeta[item.category]?.code ?? "LEARN"}</span><b>{localizedText(item.subcategory, language)}</b></div>
+                  <h3 dir="auto">{opportunityTitle(item, language)}</h3>
+                  <p dir="auto">{item.description}</p>
                   <dl>
-                    <div><dt>العمر</dt><dd>{item.ageLabel}</dd></div>
-                    <div><dt>المدة</dt><dd>{item.duration}</dd></div>
-                    <div><dt>المكان</dt><dd>{modeLabels[item.mode]} · {item.location}</dd></div>
-                    <div><dt>الرسوم</dt><dd>{priceLabel(item.priceKwd)}</dd></div>
+                    <div><dt>{copy.age}</dt><dd>{ageLabel(item, language)}</dd></div>
+                    <div><dt>{copy.duration}</dt><dd dir="auto">{localizedText(item.duration, language)}</dd></div>
+                    <div><dt>{copy.location}</dt><dd dir="auto">{modeLabel(item.mode, language)} · {localizedText(item.location, language)}</dd></div>
+                    <div><dt>{copy.fees}</dt><dd>{priceLabel(item.priceKwd, language)}</dd></div>
                   </dl>
-                  <div className="course-organizer"><span className="org-monogram">{organizerMark(item.organizer)}</span><span><small>الجهة المنظمة</small><b>{item.organizer}</b></span></div>
+                  <div className="course-organizer"><span className="org-monogram">{organizerMark(item.organizer)}</span><span><small>{copy.organizer}</small><b>{localizedText(item.organizer, language)}</b></span></div>
                   <div className={"course-confidence " + (item.aiReviewStatus === "verified" ? "ai-reviewed" : "")}>
-                    <span>{aiReviewLabel(item)}</span>
-                    <small>آخر فحص: {checkedLabel(item.verifiedAt ?? item.aiReviewedAt ?? item.sourceCheckedAt)}</small>
+                    <span>{aiReviewLabel(item, language)}</span>
+                    <small>{copy.lastCheck}: {checkedLabel(item.verifiedAt ?? item.aiReviewedAt ?? item.sourceCheckedAt, language)}</small>
                   </div>
                   <div className="course-actions">
-                    <button type="button" onClick={() => setSelected(item)}>التفاصيل</button>
-                    <a href={officialRegistrationDestination(item)} target="_blank" rel="noreferrer" aria-label={`افتح صفحة ${item.title} في موقع الجهة المنظمة`}>موقع الجهة للتسجيل <span>↗</span></a>
+                    <button type="button" onClick={() => setSelected(item)}>{copy.details}</button>
+                    <a href={officialRegistrationDestination(item)} target="_blank" rel="noreferrer" aria-label={`${copy.openOfficialRegistration}: ${opportunityTitle(item, language)}`}>{copy.officialRegistration} <span>↗</span></a>
                   </div>
                 </div>
               </article>)}
-            </div> : <div className="empty-state" role="status"><span>⌁</span><h3>{dataMode === "setup_required" ? "ربط دليل الدورات غير مكتمل" : dataMode === "awaiting_sync" ? "بانتظار تفعيل جمع الدورات" : dataMode === "connecting" ? "جارٍ التحقق من الفرص" : dataMode === "unavailable" ? "تعذّر التحقق من الدورات حاليًا" : "لا توجد فرص مؤكدة تطابق البحث حاليًا"}</h3><p>{dataMode === "setup_required" ? "قاعدة بيانات الدورات تحتاج إعدادًا. هذا لا يعني عدم وجود دورات لدى الجهات." : dataMode === "awaiting_sync" ? "قاعدة البيانات متصلة، لكن جمع الإعلانات ومراجعتها لم يبدأ بعد. لا يمثل هذا العدد الدورات المتاحة لدى الجهات." : dataMode === "unavailable" ? "سنحاول الاتصال مجددًا تلقائيًا. لا نعرض بيانات قديمة أو غير مؤكدة أثناء التعذّر." : "تظهر الإعلانات الرسمية بعد التحقق من المواعيد ورابط التسجيل. غياب العمر أو الرسوم لا يمنع العرض؛ نكتب «غير معلن من الجهة»."}</p>{(activeFilterCount > 0 || query) && <button type="button" onClick={clearFilters}>مسح الفلاتر</button>}</div>}
+            </div> : <div className="empty-state" role="status"><span>⌁</span><h3>{dataMode === "setup_required" ? copy.emptySetup : dataMode === "awaiting_sync" ? copy.emptyAwaiting : dataMode === "connecting" ? copy.emptyConnecting : dataMode === "unavailable" ? copy.emptyUnavailable : copy.emptyNoMatches}</h3><p>{dataMode === "setup_required" ? copy.emptySetupCopy : dataMode === "awaiting_sync" ? copy.emptyAwaitingCopy : dataMode === "unavailable" ? copy.emptyUnavailableCopy : copy.emptyNoMatchesCopy}</p>{(activeFilterCount > 0 || query) && <button type="button" onClick={clearFilters}>{copy.clearFilters}</button>}</div>}
           </div>
         </div>
       </section>
 
       <section className="source-section" id="sources">
-        <div><p className="section-index">03 / كيف نتحقق؟</p><h2>المعلومة تبدأ من المصدر.</h2></div>
+        <div><p className="section-index">03 / {copy.howVerify}</p><h2>{copy.sourceFirst}</h2></div>
         <div className="source-steps">
-          <article><span>01</span><h3>بحث كل نصف ساعة</h3><p>البوت مجدول لفحص مواقع الجهات وروابط إعلاناتها. قد يتأخر التشغيل عند ازدحام خدمة الجدولة. حسابات Instagram وX لم تُربط بعد.</p></article>
-          <article><span>02</span><h3>مراجعة بلا تخمين</h3><p>نراجع المعلومات مقابل الإعلان. العمر والرسوم غير المذكورين يظهران بعبارة «غير معلن من الجهة»، ولا نعتبر التسجيل مجانيًا أو مناسبًا لكل الأعمار.</p></article>
-          <article><span>03</span><h3>تسجيل متاح</h3><p>تظهر الفرص ذات المواعيد وروابط التسجيل المؤكدة، وتختفي بعد إغلاق التسجيل أو بدء البرنامج.</p></article>
+          <article><span>01</span><h3>{copy.everyHalfHour}</h3><p>{copy.everyHalfHourCopy}</p></article>
+          <article><span>02</span><h3>{copy.noGuessing}</h3><p>{copy.noGuessingCopy}</p></article>
+          <article><span>03</span><h3>{copy.registrationOpen}</h3><p>{copy.registrationOpenCopy}</p></article>
         </div>
-        <div className="source-badges" aria-label="المصادر الأساسية"><span>CODED</span><span>KFAS</span></div>
-        <div className="source-health" aria-label="حالة فحص الجهات">
+        <div className="source-badges" aria-label={copy.primarySources}><span>CODED</span><span>KFAS</span></div>
+        <div className="source-health" aria-label={copy.sourceHealth}>
           {monitoredOrganizers.map(name => {
             const source = sourceStates.find(item => item.name === name);
             const recent = source?.last_synced_at && Date.parse(source.last_synced_at) > clock - 90 * 60_000;
             const automatic = source?.parser_key === "official-parser-v1";
-            return <article key={name}><b>{name}</b><span>{!source?.last_synced_at ? "بانتظار أول فحص" : !recent ? "آخر فحص قديم — التحديث يحتاج متابعة" : source.last_sync_status === "failed" ? "تعذّر الوصول إلى المصدر" : source.last_sync_status === "partial" ? "فحص جزئي — بعض الصفحات لم تُفحص" : automatic ? "اكتمل فحص الموقع برمجيًا" : "مراجعة عند الإضافة"}</span>
-              <small>{source?.last_synced_at ? new Intl.DateTimeFormat("ar-KW", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kuwait" }).format(new Date(source.last_synced_at)) : "لا يوجد وقت فحص مسجل"}</small></article>;
+            return <article key={name}><b>{localizedText(name, language)}</b><span>{!source?.last_synced_at ? copy.firstCheckPending : !recent ? copy.staleCheck : source.last_sync_status === "failed" ? copy.sourceFailed : source.last_sync_status === "partial" ? copy.sourcePartial : automatic ? copy.automaticCheckDone : copy.reviewedOnAdd}</span>
+              <small>{source?.last_synced_at ? checkedLabel(source.last_synced_at, language, true) : copy.noCheckTime}</small></article>;
           })}
         </div>
-        <p className="source-note">الفحص الحالي برمجي وليس مراجعة ذكاء اصطناعي. تُنشر الإعلانات التي يستطيع البوت استخراج تفاصيلها والتحقق منها؛ الإعلانات المصوّرة فقط أو ناقصة المواعيد تبقى خارج النتائج لحين مراجعتها.</p>
-        <p className="source-note">لا نضيف بطاقات دون إعلان رسمي. غياب العمر أو الرسوم لا يخفي الدورة، لكن تعارض المعلومات أو عدم تأكد التسجيل يوقف نشرها. المراجعة الآلية لا تضمن خلو المصدر من الخطأ؛ راجع الإعلان الرسمي قبل التسجيل.</p>
+        <p className="source-note">{copy.sourceNoteOne}</p>
+        <p className="source-note">{copy.sourceNoteTwo}</p>
       </section>
 
       <footer>
-        <div className="brand footer-brand"><img className="mirsad-mark" src={assetPath("/mirsad-mark.svg")} width="36" height="36" alt="" /><span><b>مرصاد</b><small>ابحث. قارن. تعلّم.</small></span></div>
-        <p>دليل مستقل يجمع فرص التعلّم في الكويت ويعيدك دائمًا إلى المصدر الرسمي.</p>
-        <a href="#top">العودة للأعلى ↑</a>
+        <div className="brand footer-brand"><img className="mirsad-mark" src={assetPath("/mirsad-mark.svg")} width="36" height="36" alt="" /><span><b>{copy.brand}</b><small>{copy.footerTag}</small></span></div>
+        <p>{copy.footerCopy}</p>
+        <a href="#top">{copy.backToTop}</a>
       </footer>
 
-      <button className="floating-bot" type="button" onClick={() => setBotOpen(true)}><span>✦</span><b>اسأل مِرصاد</b></button>
+      <button className="floating-bot" type="button" onClick={() => setBotOpen(true)}><span>✦</span><b>{copy.askMirsad}</b></button>
 
-      {botOpen && <div className="bot-dialog" role="dialog" aria-modal="true" aria-label="مُرشد مِرصاد">
-        <button className="dialog-backdrop" type="button" onClick={() => setBotOpen(false)} aria-label="إغلاق" />
+      {botOpen && <div className="bot-dialog" role="dialog" aria-modal="true" aria-label={copy.assistantAria}>
+        <button className="dialog-backdrop" type="button" onClick={() => setBotOpen(false)} aria-label={copy.close} />
         <section>
-          <header><div className="mini-bot">✦</div><div><b>مُرشد مِرصاد</b><small><i /> جاهز للبحث</small></div><button type="button" onClick={() => setBotOpen(false)}>×</button></header>
+          <header><div className="mini-bot">✦</div><div><b>{copy.guide}</b><small><i /> {copy.ready}</small></div><button type="button" aria-label={copy.close} onClick={() => setBotOpen(false)}>×</button></header>
           <div className="chat-body">
             <p className="bot-message">{botReply}</p>
-            {currentBotResults.map((item) => <button className="bot-result" type="button" key={item.id} onClick={() => { setSelected(item); setBotOpen(false); }}><span><small>{item.category}</small><b>{item.title}</b></span><i>←</i></button>)}
+            {currentBotResults.map((item) => <button className="bot-result" type="button" key={item.id} onClick={() => { setSelected(item); setBotOpen(false); }}><span><small>{categoryLabel(item.category, language)}</small><b dir="auto">{opportunityTitle(item, language)}</b></span><i>{directionArrow}</i></button>)}
             <div className="quick-prompts">
-              {["عمري 16 وأحب التقنية", "أبي ورشة مهارات", "دورات هندسية حضورية"].map((prompt) => <button type="button" key={prompt} onClick={() => askBot(prompt)}>{prompt}</button>)}
+              {copy.quickPrompts.map((prompt) => <button type="button" key={prompt} onClick={() => askBot(prompt)}>{prompt}</button>)}
             </div>
           </div>
-          <form onSubmit={handleBotSubmit}><input autoFocus value={botText} onChange={(event) => setBotText(event.target.value)} placeholder="مثال: عمري 18 وأحب الروبوتات" /><button type="submit" aria-label="إرسال">←</button></form>
-          <p className="bot-disclaimer">المرشد يبحث في بيانات الدليل الحالية ولا يضمن توفر المقاعد.</p>
+          <form onSubmit={handleBotSubmit}><input autoFocus value={botText} onChange={(event) => setBotText(event.target.value)} placeholder={copy.botPlaceholder} /><button type="submit" aria-label={copy.send}>{directionArrow}</button></form>
+          <p className="bot-disclaimer">{copy.botDisclaimer}</p>
         </section>
       </div>}
 
-      {selected && <div className="detail-dialog" role="dialog" aria-modal="true" aria-label={`تفاصيل ${selected.title}`}>
-        <button className="dialog-backdrop" type="button" onClick={() => setSelected(null)} aria-label="إغلاق" />
+      {selected && <div className="detail-dialog" role="dialog" aria-modal="true" aria-label={`${copy.detailAria} ${opportunityTitle(selected, language)}`}>
+        <button className="dialog-backdrop" type="button" onClick={() => setSelected(null)} aria-label={copy.close} />
         <article>
-          <button className="detail-close" type="button" onClick={() => setSelected(null)}>×</button>
-          <div className="detail-image"><img src={assetPath(selected.image)} alt={selected.imageCaption ?? ""} className={selected.imageCaption ? "provider-logo" : undefined} /><span className={`course-status ${selected.status}`}>{statusLabels[selected.status]}</span>{selected.imageCaption && <small className="image-caption">{selected.imageCaption}</small>}</div>
+          <button className="detail-close" type="button" aria-label={copy.close} onClick={() => setSelected(null)}>×</button>
+          <div className="detail-image"><img src={assetPath(selected.image)} alt={selected.imageCaption ?? ""} className={selected.imageCaption ? "provider-logo" : undefined} /><span className={`course-status ${selected.status}`}>{statusLabel(selected.status, language)}</span>{selected.imageCaption && <small className="image-caption">{selected.imageCaption}</small>}</div>
           <div className="detail-content">
-            <p className="course-code"><span>{categoryMeta[selected.category]?.code ?? "LEARN"}</span><b>{selected.category} / {selected.subcategory}</b></p>
-            <h2>{selected.title}</h2>
-            {selected.titleEn && <p className="english-title" dir="ltr">{selected.titleEn}</p>}
-            <p className="detail-description">{selected.description}</p>
+            <p className="course-code"><span>{categoryMeta[selected.category]?.code ?? "LEARN"}</span><b>{categoryLabel(selected.category, language)} / {localizedText(selected.subcategory, language)}</b></p>
+            <h2 dir="auto">{opportunityTitle(selected, language)}</h2>
+            {language === "ar" && selected.titleEn && <p className="english-title" dir="ltr">{selected.titleEn}</p>}
+            <p className="detail-description" dir="auto">{selected.description}</p>
             <dl>
-              <div><dt>الجهة</dt><dd>{selected.organizer}</dd></div>
-              <div><dt>العمر</dt><dd>{selected.ageLabel}</dd></div>
-              <div><dt>المدة</dt><dd>{selected.duration}</dd></div>
-              <div><dt>الموعد</dt><dd>{selected.schedule}</dd></div>
-              <div><dt>المكان</dt><dd>{selected.location} · {modeLabels[selected.mode]}</dd></div>
-              <div><dt>الرسوم</dt><dd>{priceLabel(selected.priceKwd)}</dd></div>
+              <div><dt>{copy.organizer}</dt><dd>{localizedText(selected.organizer, language)}</dd></div>
+              <div><dt>{copy.age}</dt><dd>{ageLabel(selected, language)}</dd></div>
+              <div><dt>{copy.duration}</dt><dd dir="auto">{localizedText(selected.duration, language)}</dd></div>
+              <div><dt>{language === "ar" ? "الموعد" : "Schedule"}</dt><dd dir="auto">{localizedText(selected.schedule, language)}</dd></div>
+              <div><dt>{copy.location}</dt><dd dir="auto">{localizedText(selected.location, language)} · {modeLabel(selected.mode, language)}</dd></div>
+              <div><dt>{copy.fees}</dt><dd>{priceLabel(selected.priceKwd, language)}</dd></div>
             </dl>
             <div className="tag-list">{selected.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
-            <div className="verification-note"><span>✓</span><p><b>آخر تحقق من المصدر: {checkedLabel(selected.sourceCheckedAt)}</b><small>{selected.verificationMethod === "official_source" ? "فحصه البوت برمجيًا من المصدر الرسمي؛ لم يراجعه ذكاء اصطناعي. " : selected.aiReviewModel === "codex-interactive" ? "راجعه مساعد الذكاء الاصطناعي عند الإضافة؛ هذه ليست متابعة آلية مستمرة. " : selected.aiReviewStatus === "verified" && selected.aiReviewedAt ? "راجعه الذكاء الاصطناعي بتاريخ " + checkedLabel(selected.aiReviewedAt) + ". " : ""}زر التسجيل يفتح صفحة التقديم الرسمية لدى الجهة. توفر رابط التقديم لا يضمن المقاعد أو القبول.</small></p></div>
-            <div className="detail-actions"><a className="primary-link" href={officialRegistrationDestination(selected)} target="_blank" rel="noreferrer">افتح صفحة التسجيل في موقع الجهة ↗</a><a href={officialSourceDestination(selected)} target="_blank" rel="noreferrer">عرض المصدر</a></div>
+            <div className="verification-note"><span>✓</span><p><b>{copy.verifiedAt}: {checkedLabel(selected.sourceCheckedAt, language)}</b><small>{selected.verificationMethod === "official_source" ? copy.officialBotReview : selected.aiReviewModel === "codex-interactive" ? copy.interactiveReview : selected.aiReviewStatus === "verified" && selected.aiReviewedAt ? copy.aiReviewed.replace("{date}", checkedLabel(selected.aiReviewedAt, language)) : ""}{copy.registrationDisclaimer}</small></p></div>
+            <div className="detail-actions"><a className="primary-link" href={officialRegistrationDestination(selected)} target="_blank" rel="noreferrer">{copy.openRegistration}</a><a href={officialSourceDestination(selected)} target="_blank" rel="noreferrer">{copy.viewSource}</a></div>
           </div>
         </article>
       </div>}

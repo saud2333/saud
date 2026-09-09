@@ -39,9 +39,14 @@ test("initial catalog setup refuses existing tables and keeps evidence private",
 });
 
 test("UI identifies initial review and does not imply ongoing automated verification", async () => {
-  const ui = await readFile(new URL("../app/components/KuwaitCoursesApp.tsx", import.meta.url), "utf8");
+  const [ui, i18n] = await Promise.all([
+    readFile(new URL("../app/components/KuwaitCoursesApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/mirsad-i18n.ts", import.meta.url), "utf8"),
+  ]);
   assert.match(ui, /ai_review_model/);
-  assert.match(ui, /الجمع والمراجعة الآلية المستمرة لم يُفعّلا بعد/);
-  assert.match(ui, /هذه ليست متابعة آلية مستمرة/);
+  assert.match(i18n, /الجمع والمراجعة الآلية المستمرة لم يُفعّلا بعد/);
+  assert.match(i18n, /هذه ليست متابعة آلية مستمرة/);
+  assert.match(i18n, /Continuous automated collection and review are not active yet/);
+  assert.match(i18n, /this is not continuous automated monitoring/);
   assert.match(ui, /imageCaption/);
 });

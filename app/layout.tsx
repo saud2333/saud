@@ -36,6 +36,6 @@ const structuredData = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const themeScript = `(function(){try{var p=localStorage.getItem('mirsad-theme');var d=p==='dark'||(!p&&matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';document.documentElement.style.colorScheme=d?'dark':'light'}catch(e){}})()`;
+  const themeScript = `(function(){try{var p=localStorage.getItem('mirsad-theme');var d=p==='dark'||(!p&&matchMedia('(prefers-color-scheme:dark)').matches);var l=localStorage.getItem('mirsad-language')==='en'?'en':'ar';document.documentElement.dataset.theme=d?'dark':'light';document.documentElement.dataset.language=l;document.documentElement.lang=l;document.documentElement.dir=l==='ar'?'rtl':'ltr';document.documentElement.style.colorScheme=d?'dark':'light'}catch(e){}})()`;
   return <html lang="ar" dir="rtl" suppressHydrationWarning><head><meta name="theme-color" content="#071d2b"/><script dangerouslySetInnerHTML={{ __html: themeScript }}/><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}/></head><body>{children}</body></html>;
 }
