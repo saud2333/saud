@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyReviewResults, defaultSources, isExpired, parseSourcePage } from "../scripts/sync-opportunities.mjs";
+import { applyReviewResults, defaultSources, isExpired, parseSourcePage, retiredSourceUrls, retireRemovedSources } from "../scripts/sync-opportunities.mjs";
 
 const source = {
   key: "fixture",
@@ -64,9 +64,40 @@ test("extracts dated KISR-style table rows and closes past courses", () => {
   assert.equal(row.is_published, false);
 });
 
-test("tracks the five requested Kuwait learning sources", () => {
-  assert.deepEqual(defaultSources.slice(0, 5).map((sourceItem) => sourceItem.key), ["coded", "kgbc", "kfas", "kisr", "sacgc"]);
+test("tracks the active Kuwait learning sources and retires removed organizations", () => {
+  assert.deepEqual(defaultSources.map((sourceItem) => sourceItem.key), ["coded", "kfas", "ku-engineering", "ku-community"]);
   assert.ok(defaultSources.find((sourceItem) => sourceItem.key === "kfas").feedUrls.includes("https://apply.kfas.org.kw/Offers/ListOffers"));
+  assert.deepEqual(retiredSourceUrls, ["https://www.kuwaitgbc.com/", "https://www.kisr.edu.kw/", "https://sacgc.org/"]);
+});
+
+test("unpublishes catalog records before disabling retired sources", async () => {
+  const calls = [];
+  const client = {
+    from(table) {
+      return {
+        select(columns) {
+          return { in(column, values) {
+            calls.push({ operation: "select", table, columns, column, values });
+            return Promise.resolve({ data: [{ id: "old-1" }, { id: "old-2" }, { id: "old-3" }], error: null });
+          } };
+        },
+        update(values) {
+          return { in(column, ids) {
+            calls.push({ operation: "update", table, values, column, ids });
+            return Promise.resolve({ error: null });
+          } };
+        },
+      };
+    },
+  };
+  assert.equal(await retireRemovedSources(client), 3);
+  assert.deepEqual(calls.map(({ operation, table }) => `${operation}:${table}`), [
+    "select:learning_sources",
+    "update:learning_opportunities",
+    "update:learning_sources",
+  ]);
+  assert.deepEqual(calls[1].values, { is_published: false, publication_ready: false });
+  assert.deepEqual(calls[2].values, { is_active: false });
 });
 
 test("uses a stable factual hash so AI review only repeats after content changes", () => {

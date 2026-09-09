@@ -21,12 +21,6 @@ export const defaultSources = [
     ],
   },
   {
-    key: "kgbc",
-    name: "مجلس الكويت للمباني الخضراء — KGBC",
-    websiteUrl: "https://www.kuwaitgbc.com/",
-    feedUrl: "https://www.kuwaitgbc.com/events",
-  },
-  {
     key: "kfas",
     name: "مؤسسة الكويت للتقدم العلمي — KFAS",
     websiteUrl: "https://www.kfas.org.kw/",
@@ -36,23 +30,6 @@ export const defaultSources = [
       "https://apply.kfas.org.kw/FormDetails/SubServices?Id=54043757-b3f6-f011-8406-70a8a51d5041",
       "https://apply.kfas.org.kw/",
     ],
-  },
-  {
-    key: "kisr",
-    name: "معهد الكويت للأبحاث العلمية — KISR",
-    websiteUrl: "https://www.kisr.edu.kw/",
-    feedUrl: "https://www.kisr.edu.kw/ar/careers-training/training-courses/",
-    feedUrls: [
-      "https://www.kisr.edu.kw/ar/careers-training/training-courses/",
-      "https://www.kisr.edu.kw/ar/careers-training/student-programs/",
-    ],
-  },
-  {
-    key: "sacgc",
-    name: "مركز صباح الأحمد للموهبة والإبداع — SACGC",
-    websiteUrl: "https://sacgc.org/",
-    feedUrl: "https://sacgc.org/en/",
-    feedUrls: ["https://sacgc.org/en/", "https://tcbclubs.sacgc.org/", "https://stemracing.sacgc.org/"],
   },
   {
     key: "ku-engineering",
@@ -66,6 +43,12 @@ export const defaultSources = [
     websiteUrl: "https://ccsce.ku.edu.kw/",
     feedUrl: "https://ccsce.ku.edu.kw/",
   },
+];
+
+export const retiredSourceUrls = [
+  "https://www.kuwaitgbc.com/",
+  "https://www.kisr.edu.kw/",
+  "https://sacgc.org/",
 ];
 
 const learningWords = /دور(?:ة|ات)|ورش(?:ة|ات)|معسكر|برنامج\s+تدريب|تدريب|course|workshop|bootcamp|training|leadership|management|innovation|performance|finance|future|science|school|lego|stem|robot|latex|solar|energy|data|engineering/i;
@@ -493,9 +476,25 @@ export async function checkSyncConnection({ env = process.env, createClientImpl 
   return { connection: "ok", catalogTables: tables, aiConfigured: config.aiConfigured, automatedReviewTested: false, writesPerformed: false };
 }
 
+export async function retireRemovedSources(client) {
+  const { data: sources, error: sourceError } = await client.from("learning_sources")
+    .select("id").in("website_url", retiredSourceUrls);
+  if (sourceError) throw sourceError;
+  const sourceIds = (sources ?? []).map((source) => source.id).filter(Boolean);
+  if (!sourceIds.length) return 0;
+  const { error: opportunitiesError } = await client.from("learning_opportunities")
+    .update({ is_published: false, publication_ready: false }).in("source_id", sourceIds);
+  if (opportunitiesError) throw opportunitiesError;
+  const { error: sourcesError } = await client.from("learning_sources")
+    .update({ is_active: false }).in("id", sourceIds);
+  if (sourcesError) throw sourcesError;
+  return sourceIds.length;
+}
+
 export async function runSync({ env = process.env, createClientImpl = createClient } = {}) {
   const { url, serviceKey } = syncConfiguration(env);
   const client = createClientImpl(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  await retireRemovedSources(client);
   const { error: archiveError } = await client.rpc("archive_expired_learning_opportunities");
   if (archiveError) throw archiveError;
   const results = [];

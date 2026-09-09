@@ -16,7 +16,8 @@ import {
 type DataMode = "connecting" | "live" | "unavailable" | "setup_required" | "awaiting_sync";
 type SortMode = "featured" | "price" | "title";
 type SourceState = { name: string; website_url: string; last_synced_at: string | null; last_sync_status: string | null; parser_key: string | null };
-const monitoredOrganizers = ["كودد — CODED", "مجلس الكويت للمباني الخضراء — KGBC", "مؤسسة الكويت للتقدم العلمي — KFAS", "معهد الكويت للأبحاث العلمية — KISR", "مركز صباح الأحمد للموهبة والإبداع — SACGC"];
+const monitoredOrganizers = ["كودد — CODED", "مؤسسة الكويت للتقدم العلمي — KFAS"];
+const retiredOrganizerPattern = /KGBC|المباني الخضراء|KISR|الأبحاث العلمية|SACGC|صباح الأحمد/i;
 
 declare global {
   interface Document {
@@ -141,20 +142,14 @@ function aiReviewLabel(item: LearningOpportunity) {
 
 function organizerMark(organizer: string) {
   if (/CODED|كودد/i.test(organizer)) return "CODED";
-  if (/KGBC|المباني الخضراء/i.test(organizer)) return "KGBC";
   if (/KFAS|التقدم العلمي/i.test(organizer)) return "KFAS";
-  if (/KISR|الأبحاث العلمية/i.test(organizer)) return "KISR";
-  if (/SACGC|صباح الأحمد/i.test(organizer)) return "SACGC";
   if (/جامعة الكويت/.test(organizer)) return "KU";
   return "KW";
 }
 
 const officialRegistrationPortals = [
   { organizer: /CODED|كودد/i, domains: ["coded.kw"], landing: "https://coded.kw/companies/programs" },
-  { organizer: /KGBC|المباني الخضراء/i, domains: ["kuwaitgbc.com"], landing: "https://www.kuwaitgbc.com/events" },
   { organizer: /KFAS|التقدم العلمي/i, domains: ["kfas.org.kw"], landing: "https://apply.kfas.org.kw/" },
-  { organizer: /KISR|الأبحاث العلمية/i, domains: ["kisr.edu.kw"], landing: "https://www.kisr.edu.kw/ar/careers-training/training-courses/" },
-  { organizer: /SACGC|صباح الأحمد/i, domains: ["sacgc.org"], landing: "https://sacgc.org/en/" },
   { organizer: /جامعة الكويت.*مركز خدمة المجتمع/i, domains: ["ku.edu.kw"], landing: "https://ccsce.ku.edu.kw/" },
   { organizer: /جامعة الكويت/i, domains: ["ku.edu.kw"], landing: "https://engineering.ku.edu.kw/ar/vdpct/about/office-consultation-and-training" },
 ] as const;
@@ -197,7 +192,8 @@ function officialSourceDestination(item: LearningOpportunity) {
 }
 
 function isOpportunityActive(item: LearningOpportunity, now: number) {
-  return item.status === "open" && (item.aiReviewStatus === "verified" || item.verificationMethod === "official_source")
+  return !retiredOrganizerPattern.test(item.organizer)
+    && item.status === "open" && (item.aiReviewStatus === "verified" || item.verificationMethod === "official_source")
     && Boolean(item.registrationEndsAt && Date.parse(item.registrationEndsAt) > now)
     && Boolean(item.startsAt && Date.parse(item.startsAt) > now);
 }
@@ -629,7 +625,7 @@ export default function KuwaitCoursesApp() {
           <article><span>02</span><h3>مراجعة بلا تخمين</h3><p>نراجع المعلومات مقابل الإعلان. العمر والرسوم غير المذكورين يظهران بعبارة «غير معلن من الجهة»، ولا نعتبر التسجيل مجانيًا أو مناسبًا لكل الأعمار.</p></article>
           <article><span>03</span><h3>تسجيل متاح</h3><p>تظهر الفرص ذات المواعيد وروابط التسجيل المؤكدة، وتختفي بعد إغلاق التسجيل أو بدء البرنامج.</p></article>
         </div>
-        <div className="source-badges" aria-label="المصادر الأساسية"><span>CODED</span><span>KGBC</span><span>KFAS</span><span>KISR</span><span>SACGC</span></div>
+        <div className="source-badges" aria-label="المصادر الأساسية"><span>CODED</span><span>KFAS</span></div>
         <div className="source-health" aria-label="حالة فحص الجهات">
           {monitoredOrganizers.map(name => {
             const source = sourceStates.find(item => item.name === name);

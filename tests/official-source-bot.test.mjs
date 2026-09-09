@@ -12,11 +12,12 @@ const text = "KFAS Offer Details Strategic Thinking Local Executive Education (L
 const doc = { url, text, channel: "website", candidates: [], images: ["https://apply.kfas.org.kw/poster.png"], imageHashes: ["a".repeat(64)], links: [url, "https://apply.kfas.org.kw/User/Login?returnUrl=" + encodeURIComponent(new URL(url).pathname + new URL(url).search)] };
 const now = Date.parse("2030-09-01T12:00:00Z");
 
-test("required organizations and half-hour source-only schedule are configured", async () => {
+test("active organizations and half-hour source-only schedule are configured", async () => {
   const implementation = await readFile(new URL("../scripts/source-only-sync.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(implementation, /from ["']\.\/sync-opportunities\.mjs/);
   assert.match(implementation, /selectedImages\.has\(image\)/);
-  for (const key of ["coded", "kgbc", "kisr", "sacgc", "kfas"]) assert.ok(defaultSources.some(s => s.key === key));
+  for (const key of ["coded", "kfas", "ku-engineering", "ku-community"]) assert.ok(defaultSources.some(s => s.key === key));
+  for (const key of ["kgbc", "kisr", "sacgc"]) assert.ok(!defaultSources.some(s => s.key === key));
   const workflow = await readFile(new URL("../.github/workflows/sync-opportunities.yml", import.meta.url), "utf8");
   assert.match(workflow, /cron: "\*\/30 \* \* \* \*"/);
   assert.match(workflow, /BOT_VERIFICATION_MODE: official_source/);

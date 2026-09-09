@@ -25,7 +25,7 @@ interface ExecutionContext {
 }
 
 const securityHeaders: Record<string, string> = {
-  "Content-Security-Policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: https://crqjtgolagrknjkpbsdi.supabase.co https://coded.kw https://*.coded.kw https://kuwaitgbc.com https://*.kuwaitgbc.com https://kfas.org.kw https://*.kfas.org.kw https://kisr.edu.kw https://*.kisr.edu.kw https://sacgc.org https://*.sacgc.org https://ku.edu.kw https://*.ku.edu.kw https://i.ytimg.com https://pbs.twimg.com https://*.cdninstagram.com https://*.fbcdn.net; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://crqjtgolagrknjkpbsdi.supabase.co wss://crqjtgolagrknjkpbsdi.supabase.co; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests",
+  "Content-Security-Policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: https://crqjtgolagrknjkpbsdi.supabase.co https://coded.kw https://*.coded.kw https://kfas.org.kw https://*.kfas.org.kw https://ku.edu.kw https://*.ku.edu.kw https://i.ytimg.com https://pbs.twimg.com https://*.cdninstagram.com https://*.fbcdn.net; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://crqjtgolagrknjkpbsdi.supabase.co wss://crqjtgolagrknjkpbsdi.supabase.co; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests",
   "Cross-Origin-Opener-Policy": "same-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
   "Referrer-Policy": "strict-origin-when-cross-origin",

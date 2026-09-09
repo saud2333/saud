@@ -235,7 +235,7 @@ html[data-theme="dark"] .age-control .age-presets button.active { border-color: 
 .source-steps h3 { margin: 35px 0 6px; font-size: 1.25rem; }
 .source-steps p { margin: 0; color: #9eb3ba; font-size: 0.84rem; }
 .source-note { grid-column: 1 / -1; margin: -25px 0 0; padding-top: 24px; border-top: 1px solid rgba(255, 255, 255, 0.15); color: #8fa6ae; font-size: 0.76rem; }
-.source-badges { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: -28px; }
+.source-badges { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: -28px; }
 .source-badges span { display: grid; place-items: center; min-height: 56px; border: 1px solid rgba(255,255,255,.2); border-radius: 14px; color: white; background: rgba(255,255,255,.07); font-family: ui-monospace, Consolas, monospace; font-size: .82rem; font-weight: 900; letter-spacing: .08em; }
 footer { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; gap: 20px; padding: 36px 7vw; background: var(--surface); }
 footer p { margin: 0; color: var(--muted); text-align: center; font-size: 0.78rem; }
