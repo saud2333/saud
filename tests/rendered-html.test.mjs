@@ -19,7 +19,7 @@ test("implements the Arabic Mirsad discovery experience", async () => {
     read("scripts/ai-review.mjs"),
     read(".github/workflows/sync-opportunities.yml"),
   ]);
-  assert.match(layout, /مِرصاد \| دليل دورات وورش الكويت/);
+  assert.match(layout, /مرصاد \| دليل دورات وورش الكويت/);
   assert.match(layout, /lang="ar" dir="rtl"/);
   assert.match(page, /KuwaitCoursesApp/);
   assert.match(app, /تعلّم مهارات المستقبل/);

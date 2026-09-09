@@ -15,6 +15,8 @@ import {
 
 type DataMode = "connecting" | "live" | "unavailable" | "setup_required" | "awaiting_sync";
 type SortMode = "featured" | "price" | "title";
+type SourceState = { name: string; website_url: string; last_synced_at: string | null; last_sync_status: string | null; parser_key: string | null };
+const monitoredOrganizers = ["كودد — CODED", "مجلس الكويت للمباني الخضراء — KGBC", "مؤسسة الكويت للتقدم العلمي — KFAS", "معهد الكويت للأبحاث العلمية — KISR", "مركز صباح الأحمد للموهبة والإبداع — SACGC"];
 
 declare global {
   interface Document {
@@ -103,6 +105,8 @@ function fromSupabaseRow(row: Record<string, unknown>): LearningOpportunity {
     aiReviewedAt: asString(row.ai_reviewed_at) || null,
     aiReviewNote: asString(row.ai_review_note) || null,
     aiReviewModel: asString(row.ai_review_model) || null,
+    verificationMethod: asString(row.verification_method, "ai"),
+    verifiedAt: asString(row.verified_at) || null,
     announcementChannel: asString(row.announcement_channel, "website"),
     officialAccountUrl: asString(row.official_account_url) || null,
     officialAccountProofUrl: asString(row.official_account_proof_url) || null,
@@ -128,6 +132,7 @@ function checkedLabel(date: string) {
 }
 
 function aiReviewLabel(item: LearningOpportunity) {
+  if (item.verificationMethod === "official_source") return "✓ فحص المصدر الرسمي";
   if (item.aiReviewStatus === "verified" && item.aiReviewModel === "codex-interactive") return "✓ روجع عند الإضافة";
   if (item.aiReviewStatus === "verified") return "✓ راجعه الذكاء الاصطناعي";
   if (item.aiReviewStatus === "pending") return "◷ بانتظار مراجعة AI";
@@ -135,6 +140,7 @@ function aiReviewLabel(item: LearningOpportunity) {
 }
 
 function organizerMark(organizer: string) {
+  if (/CODED|كودد/i.test(organizer)) return "CODED";
   if (/KGBC|المباني الخضراء/i.test(organizer)) return "KGBC";
   if (/KFAS|التقدم العلمي/i.test(organizer)) return "KFAS";
   if (/KISR|الأبحاث العلمية/i.test(organizer)) return "KISR";
@@ -144,6 +150,7 @@ function organizerMark(organizer: string) {
 }
 
 const officialRegistrationPortals = [
+  { organizer: /CODED|كودد/i, domains: ["coded.kw"], landing: "https://coded.kw/companies/programs" },
   { organizer: /KGBC|المباني الخضراء/i, domains: ["kuwaitgbc.com"], landing: "https://www.kuwaitgbc.com/events" },
   { organizer: /KFAS|التقدم العلمي/i, domains: ["kfas.org.kw"], landing: "https://apply.kfas.org.kw/" },
   { organizer: /KISR|الأبحاث العلمية/i, domains: ["kisr.edu.kw"], landing: "https://www.kisr.edu.kw/ar/careers-training/training-courses/" },
@@ -190,7 +197,7 @@ function officialSourceDestination(item: LearningOpportunity) {
 }
 
 function isOpportunityActive(item: LearningOpportunity, now: number) {
-  return item.status === "open" && item.aiReviewStatus === "verified"
+  return item.status === "open" && (item.aiReviewStatus === "verified" || item.verificationMethod === "official_source")
     && Boolean(item.registrationEndsAt && Date.parse(item.registrationEndsAt) > now)
     && Boolean(item.startsAt && Date.parse(item.startsAt) > now);
 }
@@ -198,6 +205,7 @@ function isOpportunityActive(item: LearningOpportunity, now: number) {
 export default function KuwaitCoursesApp() {
   const [opportunities, setOpportunities] = useState<LearningOpportunity[]>([]);
   const [dataMode, setDataMode] = useState<DataMode>("connecting");
+  const [sourceStates, setSourceStates] = useState<SourceState[]>([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("الكل");
   const [subcategory, setSubcategory] = useState("الكل");
@@ -243,7 +251,7 @@ export default function KuwaitCoursesApp() {
         .from("learning_opportunities")
         .select("*")
         .eq("is_published", true)
-        .eq("ai_review_status", "verified")
+        .or("ai_review_status.eq.verified,verification_method.eq.official_source")
         .eq("publication_ready", true)
         .gt("registration_ends_at", new Date().toISOString())
         .gt("last_seen_at", new Date(Date.now() - 24 * 60 * 60_000).toISOString())
@@ -252,12 +260,13 @@ export default function KuwaitCoursesApp() {
         .limit(200);
       if (!active) return;
       if (!error) {
+        const { data: sources, error: sourceError } = await client.from("learning_sources").select("name,website_url,last_synced_at,last_sync_status,parser_key").eq("is_active", true);
+        if (!active) return;
+        setSourceStates(sourceError ? [] : (sources ?? []) as SourceState[]);
         const liveItems = (data ?? []).map((row) => fromSupabaseRow(row as Record<string, unknown>));
         setOpportunities(liveItems);
         if (liveItems.length) setDataMode("live");
         else {
-          const { data: sources, error: sourceError } = await client.from("learning_sources").select("last_synced_at,last_sync_status").eq("is_active", true);
-          if (!active) return;
           setDataMode(sourceError ? "unavailable" : emptyCatalogMode(sources));
         }
       } else {
@@ -290,7 +299,7 @@ export default function KuwaitCoursesApp() {
     return ["الكل", ...Array.from(new Set(candidates.map((item) => item.subcategory))).sort((a, b) => a.localeCompare(b, "ar"))];
   }, [activeOpportunities, category]);
   const organizers = useMemo(
-    () => ["الكل", ...Array.from(new Set(activeOpportunities.map((item) => item.organizer))).sort((a, b) => a.localeCompare(b, "ar"))],
+    () => ["الكل", ...Array.from(new Set([...monitoredOrganizers, ...activeOpportunities.map((item) => item.organizer)])).sort((a, b) => a.localeCompare(b, "ar"))],
     [activeOpportunities],
   );
 
@@ -422,8 +431,8 @@ export default function KuwaitCoursesApp() {
     <main className="mirsad-shell">
       <header className="site-header">
         <a className="brand" href="#top" aria-label="مِرصاد — الصفحة الرئيسية">
-          <span className="brand-mark"><i /><i /><i /></span>
-          <span><b>مِرْصاد</b><small>فرص التعلّم في الكويت</small></span>
+          <img className="mirsad-mark" src={assetPath("/mirsad-mark.svg")} width="44" height="44" alt="" />
+          <span><b>مرصاد</b><small>فرص التعلّم في الكويت</small></span>
         </a>
         <nav aria-label="التنقل الرئيسي">
           <a href="#featured">الأبرز</a>
@@ -599,7 +608,7 @@ export default function KuwaitCoursesApp() {
                   <div className="course-organizer"><span className="org-monogram">{organizerMark(item.organizer)}</span><span><small>الجهة المنظمة</small><b>{item.organizer}</b></span></div>
                   <div className={"course-confidence " + (item.aiReviewStatus === "verified" ? "ai-reviewed" : "")}>
                     <span>{aiReviewLabel(item)}</span>
-                    <small>آخر مراجعة: {checkedLabel(item.aiReviewedAt ?? item.sourceCheckedAt)}</small>
+                    <small>آخر فحص: {checkedLabel(item.verifiedAt ?? item.aiReviewedAt ?? item.sourceCheckedAt)}</small>
                   </div>
                   <div className="course-actions">
                     <button type="button" onClick={() => setSelected(item)}>التفاصيل</button>
@@ -615,16 +624,26 @@ export default function KuwaitCoursesApp() {
       <section className="source-section" id="sources">
         <div><p className="section-index">03 / كيف نتحقق؟</p><h2>المعلومة تبدأ من المصدر.</h2></div>
         <div className="source-steps">
-          <article><span>01</span><h3>الإعلان الرسمي</h3><p>نعتمد موقع الجهة وحساباتها التي ثبتت رسميتها، مع رابط الإعلان الأصلي.</p></article>
+          <article><span>01</span><h3>بحث كل نصف ساعة</h3><p>البوت مجدول لفحص مواقع الجهات وروابط إعلاناتها. قد يتأخر التشغيل عند ازدحام خدمة الجدولة. حسابات Instagram وX لم تُربط بعد.</p></article>
           <article><span>02</span><h3>مراجعة بلا تخمين</h3><p>نراجع المعلومات مقابل الإعلان. العمر والرسوم غير المذكورين يظهران بعبارة «غير معلن من الجهة»، ولا نعتبر التسجيل مجانيًا أو مناسبًا لكل الأعمار.</p></article>
           <article><span>03</span><h3>تسجيل متاح</h3><p>تظهر الفرص ذات المواعيد وروابط التسجيل المؤكدة، وتختفي بعد إغلاق التسجيل أو بدء البرنامج.</p></article>
         </div>
-        <div className="source-badges" aria-label="المصادر الأساسية"><span>KGBC</span><span>KFAS</span><span>KISR</span><span>SACGC</span></div>
+        <div className="source-badges" aria-label="المصادر الأساسية"><span>CODED</span><span>KGBC</span><span>KFAS</span><span>KISR</span><span>SACGC</span></div>
+        <div className="source-health" aria-label="حالة فحص الجهات">
+          {monitoredOrganizers.map(name => {
+            const source = sourceStates.find(item => item.name === name);
+            const recent = source?.last_synced_at && Date.parse(source.last_synced_at) > clock - 90 * 60_000;
+            const automatic = source?.parser_key === "official-parser-v1";
+            return <article key={name}><b>{name}</b><span>{!source?.last_synced_at ? "بانتظار أول فحص" : !recent ? "آخر فحص قديم — التحديث يحتاج متابعة" : source.last_sync_status === "failed" ? "تعذّر الوصول إلى المصدر" : source.last_sync_status === "partial" ? "فحص جزئي — بعض الصفحات لم تُفحص" : automatic ? "اكتمل فحص الموقع برمجيًا" : "مراجعة عند الإضافة"}</span>
+              <small>{source?.last_synced_at ? new Intl.DateTimeFormat("ar-KW", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kuwait" }).format(new Date(source.last_synced_at)) : "لا يوجد وقت فحص مسجل"}</small></article>;
+          })}
+        </div>
+        <p className="source-note">الفحص الحالي برمجي وليس مراجعة ذكاء اصطناعي. تُنشر الإعلانات التي يستطيع البوت استخراج تفاصيلها والتحقق منها؛ الإعلانات المصوّرة فقط أو ناقصة المواعيد تبقى خارج النتائج لحين مراجعتها.</p>
         <p className="source-note">لا نضيف بطاقات دون إعلان رسمي. غياب العمر أو الرسوم لا يخفي الدورة، لكن تعارض المعلومات أو عدم تأكد التسجيل يوقف نشرها. المراجعة الآلية لا تضمن خلو المصدر من الخطأ؛ راجع الإعلان الرسمي قبل التسجيل.</p>
       </section>
 
       <footer>
-        <div className="brand footer-brand"><span className="brand-mark"><i /><i /><i /></span><span><b>مِرْصاد</b><small>ابحث. قارن. تعلّم.</small></span></div>
+        <div className="brand footer-brand"><img className="mirsad-mark" src={assetPath("/mirsad-mark.svg")} width="36" height="36" alt="" /><span><b>مرصاد</b><small>ابحث. قارن. تعلّم.</small></span></div>
         <p>دليل مستقل يجمع فرص التعلّم في الكويت ويعيدك دائمًا إلى المصدر الرسمي.</p>
         <a href="#top">العودة للأعلى ↑</a>
       </footer>
@@ -666,7 +685,7 @@ export default function KuwaitCoursesApp() {
               <div><dt>الرسوم</dt><dd>{priceLabel(selected.priceKwd)}</dd></div>
             </dl>
             <div className="tag-list">{selected.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
-            <div className="verification-note"><span>✓</span><p><b>آخر تحقق من المصدر: {checkedLabel(selected.sourceCheckedAt)}</b><small>{selected.aiReviewModel === "codex-interactive" ? "راجعه مساعد الذكاء الاصطناعي عند الإضافة؛ هذه ليست متابعة آلية مستمرة. " : selected.aiReviewStatus === "verified" && selected.aiReviewedAt ? "راجعه الذكاء الاصطناعي بتاريخ " + checkedLabel(selected.aiReviewedAt) + ". " : ""}زر التسجيل يفتح صفحة التقديم الرسمية لدى الجهة. توفر رابط التقديم لا يضمن المقاعد أو القبول.</small></p></div>
+            <div className="verification-note"><span>✓</span><p><b>آخر تحقق من المصدر: {checkedLabel(selected.sourceCheckedAt)}</b><small>{selected.verificationMethod === "official_source" ? "فحصه البوت برمجيًا من المصدر الرسمي؛ لم يراجعه ذكاء اصطناعي. " : selected.aiReviewModel === "codex-interactive" ? "راجعه مساعد الذكاء الاصطناعي عند الإضافة؛ هذه ليست متابعة آلية مستمرة. " : selected.aiReviewStatus === "verified" && selected.aiReviewedAt ? "راجعه الذكاء الاصطناعي بتاريخ " + checkedLabel(selected.aiReviewedAt) + ". " : ""}زر التسجيل يفتح صفحة التقديم الرسمية لدى الجهة. توفر رابط التقديم لا يضمن المقاعد أو القبول.</small></p></div>
             <div className="detail-actions"><a className="primary-link" href={officialRegistrationDestination(selected)} target="_blank" rel="noreferrer">افتح صفحة التسجيل في موقع الجهة ↗</a><a href={officialSourceDestination(selected)} target="_blank" rel="noreferrer">عرض المصدر</a></div>
           </div>
         </article>

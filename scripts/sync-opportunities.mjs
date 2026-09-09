@@ -10,6 +10,11 @@ import { gatePublication, officialTimestamp, officialUrl, publicationIssues, REV
 
 export const defaultSources = [
   {
+    key: "coded", name: "كودد — CODED", websiteUrl: "https://coded.kw/",
+    feedUrl: "https://coded.kw/companies/programs",
+    feedUrls: ["https://coded.kw/companies/programs", "https://coded.kw/bootcamps", "https://coded.kw/kids", "https://coded.kw/youth"],
+  },
+  {
     key: "kgbc",
     name: "مجلس الكويت للمباني الخضراء — KGBC",
     websiteUrl: "https://www.kuwaitgbc.com/",
@@ -41,7 +46,7 @@ export const defaultSources = [
     name: "مركز صباح الأحمد للموهبة والإبداع — SACGC",
     websiteUrl: "https://sacgc.org/",
     feedUrl: "https://sacgc.org/en/",
-    feedUrls: ["https://sacgc.org/en/", "https://tcbclubs.sacgc.org/"],
+    feedUrls: ["https://sacgc.org/en/", "https://tcbclubs.sacgc.org/", "https://stemracing.sacgc.org/"],
   },
   {
     key: "ku-engineering",
@@ -456,7 +461,7 @@ export async function syncSource(client, source, { env = process.env, fetchImpl 
   return { ...report, ok: uniqueDocuments.length > 0 && failures.length === 0 };
 }
 
-function databaseRow(row, sourceId, checkedAt) {
+export function databaseRow(row, sourceId, checkedAt) {
   // Missing facts remain explicit in publication_issues. Neutral storage values
   // only satisfy legacy NOT NULL constraints on quarantined records.
   const result = { ...row, source_id: sourceId, last_seen_at: checkedAt, source_checked_at: checkedAt.slice(0, 10), image_caption: row.image_caption || "صورة منشورة ضمن الإعلان الرسمي" };
@@ -469,7 +474,8 @@ function databaseRow(row, sourceId, checkedAt) {
   if (!Number.isFinite(result.price_kwd) || result.price_kwd < 0) result.price_kwd = null;
   return result;
 }
-export function syncConfiguration(env, { requireAI = true } = {}) {
+export function syncConfiguration(env, { requireAI = env.BOT_VERIFICATION_MODE !== "official_source" } = {}) {
+  if (env.BOT_VERIFICATION_MODE && !["ai", "official_source"].includes(env.BOT_VERIFICATION_MODE)) throw new Error("Invalid bot verification mode");
   const url = (env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
   const serviceKey = (env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
   if (!url || !serviceKey) throw new Error("Supabase server connection is not configured; no catalog data was changed.");
@@ -502,7 +508,8 @@ export async function runSync({ env = process.env, createClientImpl = createClie
   const results = [];
   for (const source of defaultSources) {
     try {
-      const outcome = await syncSource(client, source, { env });
+      const sync = env.BOT_VERIFICATION_MODE === "official_source" ? (await import("./source-only-sync.mjs")).syncOfficialSource : syncSource;
+      const outcome = await sync(client, source, { env });
       results.push({ source: source.name, ...outcome });
     } catch (error) {
       results.push({ source: source.name, count: 0, ok: false, error: error instanceof Error ? error.message : String(error) });

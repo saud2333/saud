@@ -87,6 +87,10 @@ export async function withImageHashes(document, source, fetchImpl = fetch, trust
 
 export function htmlDocument(html, url, source) {
   const compact = compactEmbeddedPayloads(html);
+  const structuredData = [];
+  for (const match of compact.text.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try { structuredData.push(JSON.parse(match[1])); } catch { /* Malformed data cannot publish. */ }
+  }
   const body = compact.text.replace(/<(style|nav|header|footer|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
     .replace(/<script\b(?![^>]*application\/ld\+json)[^>]*>[\s\S]*?<\/script>/gi, " ");
   const links = [];
@@ -130,7 +134,7 @@ export function htmlDocument(html, url, source) {
   }
   // Prefer the page's embedded offer image over unrelated external decoration.
   const selectedEmbedded = embeddedImages.slice(0, 4);
-  return { url, text: textOnly(body).slice(0, 30_000), links: [...new Set([url, ...links])], images: [...new Set(images)].slice(0, 4 - selectedEmbedded.length),
+  return { url, text: textOnly(body).slice(0, 30_000), structuredData, links: [...new Set([url, ...links])], images: [...new Set(images)].slice(0, 4 - selectedEmbedded.length),
     ...(selectedEmbedded.length ? { embeddedImages: selectedEmbedded } : {}), candidates: [...new Set(candidates)], channel: "website" };
 }
 

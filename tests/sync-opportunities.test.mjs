@@ -64,8 +64,8 @@ test("extracts dated KISR-style table rows and closes past courses", () => {
   assert.equal(row.is_published, false);
 });
 
-test("tracks the four requested Kuwait learning sources", () => {
-  assert.deepEqual(defaultSources.slice(0, 4).map((sourceItem) => sourceItem.key), ["kgbc", "kfas", "kisr", "sacgc"]);
+test("tracks the five requested Kuwait learning sources", () => {
+  assert.deepEqual(defaultSources.slice(0, 5).map((sourceItem) => sourceItem.key), ["coded", "kgbc", "kfas", "kisr", "sacgc"]);
   assert.ok(defaultSources.find((sourceItem) => sourceItem.key === "kfas").feedUrls.includes("https://apply.kfas.org.kw/Offers/ListOffers"));
 });
 

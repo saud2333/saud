@@ -28,7 +28,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Fetch official sources, AI-review changes, and update Supabase
+      - name: Verify official announcements and update Supabase
         run: |
           if [ "$BOT_CHECK_ONLY" = "true" ]; then
             node scripts/sync-opportunities.mjs --check-connection
@@ -36,6 +36,7 @@ jobs:
             npm run sync:opportunities
           fi
         env:
+          BOT_VERIFICATION_MODE: official_source
           BOT_CHECK_ONLY: ${{ inputs.check_only }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

@@ -34,6 +34,8 @@ export type LearningOpportunity = {
   aiReviewedAt?: string | null;
   aiReviewNote?: string | null;
   aiReviewModel?: string | null;
+  verificationMethod?: string;
+  verifiedAt?: string | null;
   announcementChannel?: string;
   officialAccountUrl?: string | null;
   officialAccountProofUrl?: string | null;

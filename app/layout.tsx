@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 const siteUrl = "https://civilkuwait.hsah-otb.chatgpt.site";
-const title = "مِرصاد | دليل دورات وورش الكويت";
+const title = "مرصاد | دليل دورات وورش الكويت";
 const description = "اكتشف دورات وورش ومعسكرات الكويت، وفلترها حسب المجال والعمر والمكان، ثم انتقل إلى رابط التسجيل الرسمي.";
 
 export const metadata: Metadata = {
@@ -16,12 +16,12 @@ export const metadata: Metadata = {
     locale: "ar_KW",
     alternateLocale: ["en_KW"],
     url: "/",
-    siteName: "CivilKuwait",
-    title: "CivilKuwait | منصة الهندسة المدنية في الكويت",
-    description: "منصة الهندسة المدنية المستدامة في الكويت: دليل المهندسين والمقاولين، سوق مواد موثّق بالمصدر، BOQ، حاسبات، وخارطة بناء البيت.",
+    siteName: "مرصاد",
+    title,
+    description,
     images: [{ url: "/og.png", width: 1731, height: 909, alt: "CivilKuwait — Sustainable Civil Engineering in Kuwait" }],
   },
-  twitter: { card: "summary_large_image", title: "CivilKuwait | منصة الهندسة المدنية في الكويت", description: "منصة الهندسة المدنية المستدامة في الكويت: دليل المهندسين والمقاولين، سوق مواد موثّق بالمصدر، BOQ، حاسبات، وخارطة بناء البيت.", images: ["/og.png"] },
+  twitter: { card: "summary_large_image", title, description, images: ["/og.png"] },
 };
 
 const structuredData = {
