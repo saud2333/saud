@@ -36,8 +36,15 @@ export async function syncOfficialSource(client, source, { env = process.env, fe
   detailUrls.sort((a, b) => Number(live.has(b)) - Number(live.has(a)) || (seen.get(a) ?? 0) - (seen.get(b) ?? 0));
   const queue = detailUrls.slice(0, 28);
   for (let offset = 0; offset < queue.length; offset += 4) await Promise.all(queue.slice(offset, offset + 4).map(url => fetchPage(url, "website_detail")));
+  // Registration pages discovered on freshly fetched detail pages are checked
+  // in the same run, so a public card never points at an unverified destination.
+  const registrationUrls = [...new Set(documents.flatMap(document => document.candidates))]
+    .filter(url => officialUrl(url, source) && /\/(?:apply|register)(?:[/?#]|$)/i.test(new URL(url).pathname)
+      && !documents.some(document => document.url === url || document.requestedUrl === url)).slice(0, 12);
+  for (let offset = 0; offset < registrationUrls.length; offset += 4) await Promise.all(registrationUrls.slice(offset, offset + 4).map(url => fetchPage(url, "registration")));
   let published = 0, held = 0, unsupported = 0, count = 0;
   const unique = new Map(documents.map(document => [document.url, document]));
+  const byRequestedUrl = new Map(documents.flatMap(document => [[document.url, document], [document.requestedUrl, document]].filter(([url]) => url)));
   for (let document of unique.values()) {
     let rows = extractOfficial(document, source);
     if (rows.length) {
@@ -57,12 +64,7 @@ export async function syncOfficialSource(client, source, { env = process.env, fe
       // Preserve reviewed Arabic titles only when the official English title is unchanged.
       if (previous?.title_en && previous.title_en === row.title_en) row.title_ar = previous.title_ar;
       if (previous) { row.source_fingerprint = previous.source_fingerprint; row.featured = Boolean(previous.featured); }
-      const result = verifyOfficial(row, source, document, Date.parse(checkedAt));
-      if (result.registration_url !== document.url) {
-        result.publication_issues.push("registration:destination_needs_adapter");
-        result.is_published = false; result.publication_ready = false; result.status = "verify";
-      }
-      return result;
+      return verifyOfficial(row, source, document, Date.parse(checkedAt), byRequestedUrl.get(row.registration_url));
     });
     if (output.length) await checked(client.from("learning_opportunities").upsert(output.map(row => databaseRow(row, sourceRow.id, checkedAt)), { onConflict: "id" }));
     // Reconcile only a successfully fetched exact page. A missing/changed

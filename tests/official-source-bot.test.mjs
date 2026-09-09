@@ -26,7 +26,7 @@ test("official parser publishes exact local facts without pretending to use AI",
   const [row] = extractOfficial(doc, source);
   const verified = verifyOfficial(row, source, doc, now);
   assert.deepEqual(verified.publication_issues, []);
-  assert.equal(verified.is_published, true);
+  assert.equal(verified.is_published, true, verified.publication_issues.join(","));
   assert.equal(verified.ai_review_status, "unavailable");
   assert.equal(verified.verification_method, "official_source");
   assert.equal(row.registration_ends_at, "2030-10-15T15:00:00+03:00");
@@ -61,6 +61,27 @@ test("generic structured adapter does not turn a start date or inquiry into a de
   assert.equal(row.registration_ends_at, null);
   assert.equal(row.registration_state, "unknown");
   assert.equal(verifyOfficial(row, coded, document, now).is_published, false);
+});
+
+test("CODED adapter publishes a live cohort only after its exact official application page is checked", () => {
+  const coded = defaultSources.find(s => s.key === "coded");
+  const pageUrl = "https://coded.kw/bootcamps/data-science";
+  const registrationUrl = "https://coded.kw/program/DS/apply?utm_source=website&utm_medium=organic&cohort=DS-Sep%2FDec-30";
+  const html = `<title>AI & Data Science Bootcamp in Kuwait | CODED Kuwait</title><main>Everything you need to know Learn how to build and launch applied AI products. Next kickoff · your seat is live 27 Sept 2030 – 3 Dec 2030 Sun–Wed · 5:00–8:45 PM CODED Campus, Free Trade Zone <a href="${registrationUrl}">Apply Now</a> Bootcamp price 2,200 KD Explore Payment Option Applications close in 00 Days 00 Hours 00 Minutes 00 Seconds Duration 10 weeks Level Beginner–Friendly Format In-Person, Kuwait Overview Work with real datasets and deploy practical models. See what you will get <img src="/brand/coded-wordmark-navy.png"><img src="/img/data-science.jpg"></main>`;
+  const page = { ...htmlDocument(html, pageUrl, coded), imageHashes: ["a".repeat(64), "b".repeat(64)] };
+  const registration = htmlDocument("<main>Data Science — Apply Join our next cohort Starts 2030-09-27 Ends 2030-12-03 Start Application</main>", registrationUrl, coded);
+  const [row] = extractOfficial(page, coded);
+  const held = verifyOfficial(row, coded, page, now);
+  const verified = verifyOfficial(row, coded, page, now, registration);
+  assert.equal(held.is_published, false);
+  assert.equal(verified.is_published, true, verified.publication_issues.join(","));
+  assert.equal(row.registration_ends_at, "2030-09-27T00:00:00+03:00");
+  assert.equal(row.starts_at, "2030-09-27T17:00:00+03:00");
+  assert.equal(row.ends_at, "2030-12-03T20:45:00+03:00");
+  assert.equal(row.price_kwd, 2200);
+  assert.equal(row.image_url, "https://coded.kw/img/data-science.jpg");
+  assert.equal(verified.registration_page_hash.length, 64);
+  assert.deepEqual(verified.publication_issues, []);
 });
 
 test("new publication policy preserves evidence privacy and server-only writes", async () => {

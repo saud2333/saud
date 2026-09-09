@@ -14,7 +14,11 @@ export const defaultSources = [
   {
     key: "coded", name: "كودد — CODED", websiteUrl: "https://coded.kw/",
     feedUrl: "https://coded.kw/companies/programs",
-    feedUrls: ["https://coded.kw/companies/programs", "https://coded.kw/bootcamps", "https://coded.kw/kids", "https://coded.kw/youth"],
+    feedUrls: [
+      "https://coded.kw/companies/programs", "https://coded.kw/bootcamps", "https://coded.kw/kids", "https://coded.kw/youth",
+      "https://coded.kw/bootcamps/data-science", "https://coded.kw/bootcamps/ai-app-developer",
+      "https://coded.kw/bootcamps/agentic-ai", "https://coded.kw/bootcamps/cybersecurity",
+    ],
   },
   {
     key: "kgbc",
