@@ -50,7 +50,15 @@ export async function syncOfficialSource(client, source, { env = process.env, fe
     if (rows.length) {
       try {
         const prepared = await mirrorEmbeddedImages(document, source, client);
-        document = await withImageHashes(prepared.document, source, fetchImpl, prepared.trustedMirrors);
+        let preparedDocument = prepared.document;
+        // CODED pages include several large decorative gallery assets. Verify
+        // the exact image selected for the public card, not unrelated images
+        // whose latency must not suppress an otherwise complete announcement.
+        if (source.key === "coded") {
+          const selectedImages = new Set(rows.map(row => row.image_url).filter(Boolean));
+          preparedDocument = { ...preparedDocument, images: preparedDocument.images.filter(image => selectedImages.has(image)) };
+        }
+        document = await withImageHashes(preparedDocument, source, fetchImpl, prepared.trustedMirrors);
         rows = extractOfficial(document, source);
       } catch (error) {
         failures.push({ url: document.url, message: error.message });
