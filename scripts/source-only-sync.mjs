@@ -4,6 +4,7 @@ import { extractOfficial, verifyOfficial, OFFICIAL_VERIFIER_VERSION } from "./of
 import { officialUrl, REVIEW_POLICY_VERSION } from "./publication-policy.mjs";
 import { documentHash } from "./announcement-extraction.mjs";
 import { databaseRow } from "./catalog-row.mjs";
+import { discoverSacgcCatalog } from "./sacgc-discovery.mjs";
 
 async function checked(result) {
   const value = await result;
@@ -19,7 +20,9 @@ export async function syncOfficialSource(client, source, { env = process.env, fe
   const existing = await checked(client.from("learning_opportunities").select("id,title_ar,title_en,source_fingerprint,source_url,is_published,registration_ends_at,featured").eq("source_id", sourceRow.id)) ?? [];
   const current = existing.filter(row => row.is_published || Date.parse(row.registration_ends_at) > Date.now());
   const fetchPage = async (url, channel) => {
-    try { const document = await fetchOfficialPage(url, source, fetchImpl); documents.push(document); channels.push({ channel, url, status: "ok" }); }
+    try { const document = source.key === "sacgc" && url === "https://tcbclubs.sacgc.org/"
+      ? await discoverSacgcCatalog(fetchImpl) : await fetchOfficialPage(url, source, fetchImpl);
+      documents.push(document); channels.push({ channel, url, status: document.publicationHold ? "needs_review" : "ok", ...(document.publicationHold ? { message: document.publicationHold, announcements: document.discoveredAnnouncements.length } : {}) }); }
     catch (error) { channels.push({ channel, url, status: "failed", message: error.message }); }
   };
   await Promise.all((source.feedUrls ?? [source.feedUrl]).map(url => fetchPage(url, "website")));
@@ -95,7 +98,7 @@ export async function syncOfficialSource(client, source, { env = process.env, fe
   }
   const report = { mode: "official_source", count, published, held, unsupportedDocuments: unsupported,
     documents: unique.size, deferred: Math.max(0, detailUrls.length - queue.length), channels, failures };
-  const status = !unique.size ? "failed" : failures.length || channels.some(item => item.status === "failed") ? "partial" : "ok";
+  const status = !unique.size ? "failed" : failures.length || channels.some(item => item.status === "failed" || item.status === "needs_review") ? "partial" : "ok";
   await checked(client.from("learning_sources").update({ last_synced_at: new Date().toISOString(), last_sync_status: status,
     last_sync_message: JSON.stringify(report), channel_status: channels }).eq("id", sourceRow.id));
   // Optional channel gaps are visible in the source report; database failures

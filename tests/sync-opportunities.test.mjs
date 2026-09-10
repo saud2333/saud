@@ -65,9 +65,9 @@ test("extracts dated KISR-style table rows and closes past courses", () => {
 });
 
 test("tracks the active Kuwait learning sources and retires removed organizations", () => {
-  assert.deepEqual(defaultSources.map((sourceItem) => sourceItem.key), ["coded", "kfas", "ku-engineering", "ku-community"]);
+  assert.deepEqual(defaultSources.map((sourceItem) => sourceItem.key), ["kgbc", "kisr", "sacgc", "coded", "kfas", "ku-engineering", "ku-community"]);
   assert.ok(defaultSources.find((sourceItem) => sourceItem.key === "kfas").feedUrls.includes("https://apply.kfas.org.kw/Offers/ListOffers"));
-  assert.deepEqual(retiredSourceUrls, ["https://www.kuwaitgbc.com/", "https://www.kisr.edu.kw/", "https://sacgc.org/"]);
+  assert.deepEqual(retiredSourceUrls, []);
 });
 
 test("unpublishes catalog records before disabling retired sources", async () => {
@@ -90,7 +90,9 @@ test("unpublishes catalog records before disabling retired sources", async () =>
       };
     },
   };
-  assert.equal(await retireRemovedSources(client), 3);
+  assert.equal(await retireRemovedSources(client), 0);
+  assert.equal(calls.length, 0);
+  assert.equal(await retireRemovedSources(client, ["https://retired.example/"]), 3);
   assert.deepEqual(calls.map(({ operation, table }) => `${operation}:${table}`), [
     "select:learning_sources",
     "update:learning_opportunities",

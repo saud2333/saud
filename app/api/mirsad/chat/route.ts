@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       .gt("registration_ends_at", new Date(now).toISOString()).gt("starts_at", new Date(now).toISOString())
       .gt("last_seen_at", new Date(now - 86_400_000).toISOString()).limit(200);
     if (error) return json({ error: "catalog_unavailable" }, 503);
-    const catalog = (data ?? []).filter(item => !/KGBC|KISR|SACGC|المباني الخضراء|الأبحاث العلمية|صباح الأحمد/i.test(item.organizer ?? ""));
+    const catalog = data ?? [];
     const history = sanitizeHistory(body.history, 8);
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",

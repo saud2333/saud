@@ -12,6 +12,20 @@ import { gatePublication, officialTimestamp, officialUrl, publicationIssues, REV
 
 export const defaultSources = [
   {
+    key: "kgbc", name: "مجلس الكويت للمباني الخضراء — KGBC", websiteUrl: "https://www.kuwaitgbc.com/",
+    feedUrl: "https://www.kuwaitgbc.com/events",
+  },
+  {
+    key: "kisr", name: "معهد الكويت للأبحاث العلمية — KISR", websiteUrl: "https://www.kisr.edu.kw/",
+    feedUrl: "https://www.kisr.edu.kw/ar/careers-training/training-courses/",
+    feedUrls: ["https://www.kisr.edu.kw/ar/careers-training/training-courses/", "https://www.kisr.edu.kw/ar/careers-training/student-programs/", "https://www.kisr.edu.kw/ar/events-page/"],
+  },
+  {
+    key: "sacgc", name: "مركز صباح الأحمد للموهبة والإبداع — SACGC", websiteUrl: "https://sacgc.org/",
+    feedUrl: "https://sacgc.org/en/programs/programs-listing/",
+    feedUrls: ["https://sacgc.org/en/", "https://sacgc.org/en/programs/programs-listing/", "https://tcbclubs.sacgc.org/", "https://acceleration.sacgc.org/"],
+  },
+  {
     key: "coded", name: "كودد — CODED", websiteUrl: "https://coded.kw/",
     feedUrl: "https://coded.kw/companies/programs",
     feedUrls: [
@@ -45,11 +59,7 @@ export const defaultSources = [
   },
 ];
 
-export const retiredSourceUrls = [
-  "https://www.kuwaitgbc.com/",
-  "https://www.kisr.edu.kw/",
-  "https://sacgc.org/",
-];
+export const retiredSourceUrls = [];
 
 const learningWords = /دور(?:ة|ات)|ورش(?:ة|ات)|معسكر|برنامج\s+تدريب|تدريب|course|workshop|bootcamp|training|leadership|management|innovation|performance|finance|future|science|school|lego|stem|robot|latex|solar|energy|data|engineering/i;
 const ignoredLabels = /^(الرئيسية|اتصل بنا|تواصل معنا|المزيد|اقرأ المزيد|طلباتي|my requests|login|home|menu|next|previous)$/i;
@@ -476,9 +486,10 @@ export async function checkSyncConnection({ env = process.env, createClientImpl 
   return { connection: "ok", catalogTables: tables, aiConfigured: config.aiConfigured, automatedReviewTested: false, writesPerformed: false };
 }
 
-export async function retireRemovedSources(client) {
+export async function retireRemovedSources(client, urls = retiredSourceUrls) {
+  if (!urls.length) return 0;
   const { data: sources, error: sourceError } = await client.from("learning_sources")
-    .select("id").in("website_url", retiredSourceUrls);
+    .select("id").in("website_url", urls);
   if (sourceError) throw sourceError;
   const sourceIds = (sources ?? []).map((source) => source.id).filter(Boolean);
   if (!sourceIds.length) return 0;

@@ -91,6 +91,9 @@ const categoryBlurbEnglish: Record<string, string> = {
 };
 
 const knownEnglish: Record<string, string> = {
+  "مجلس الكويت للمباني الخضراء — KGBC": "Kuwait Green Building Council — KGBC",
+  "معهد الكويت للأبحاث العلمية — KISR": "Kuwait Institute for Scientific Research — KISR",
+  "مركز صباح الأحمد للموهبة والإبداع — SACGC": "Sabah Al-Ahmad Center for Giftedness and Creativity — SACGC",
   "الكل": "All", "عام": "General", "غير محدد": "Not specified", "الكويت": "Kuwait",
   "تقنية": "Technology", "هندسة": "Engineering", "صحة وسلامة": "Health & safety", "إبداع": "Creativity", "مهارات عامة": "General skills",
   "الذكاء الاصطناعي الوكيلي والأتمتة": "Agentic AI & automation", "الذكاء الاصطناعي وعلوم البيانات": "AI & data science",

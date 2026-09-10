@@ -31,8 +31,7 @@ import {
 type DataMode = "connecting" | "live" | "unavailable" | "setup_required" | "awaiting_sync";
 type SortMode = "featured" | "price" | "title";
 type SourceState = { name: string; website_url: string; last_synced_at: string | null; last_sync_status: string | null; parser_key: string | null };
-const monitoredOrganizers = ["كودد — CODED", "مؤسسة الكويت للتقدم العلمي — KFAS"];
-const retiredOrganizerPattern = /KGBC|المباني الخضراء|KISR|الأبحاث العلمية|SACGC|صباح الأحمد/i;
+const monitoredOrganizers = ["كودد — CODED", "مؤسسة الكويت للتقدم العلمي — KFAS", "مجلس الكويت للمباني الخضراء — KGBC", "معهد الكويت للأبحاث العلمية — KISR", "مركز صباح الأحمد للموهبة والإبداع — SACGC"];
 
 declare global {
   interface Document {
@@ -119,6 +118,9 @@ function ageMatches(item: LearningOpportunity, age: number | null) {
 }
 
 function organizerMark(organizer: string) {
+  if (/KGBC/i.test(organizer)) return "KGBC";
+  if (/KISR/i.test(organizer)) return "KISR";
+  if (/SACGC/i.test(organizer)) return "SACGC";
   if (/CODED|كودد/i.test(organizer)) return "CODED";
   if (/KFAS|التقدم العلمي/i.test(organizer)) return "KFAS";
   if (/جامعة الكويت/.test(organizer)) return "KU";
@@ -126,6 +128,9 @@ function organizerMark(organizer: string) {
 }
 
 const officialRegistrationPortals = [
+  { organizer: /KGBC|المباني الخضراء/i, domains: ["kuwaitgbc.com"], landing: "https://www.kuwaitgbc.com/events" },
+  { organizer: /KISR|الأبحاث العلمية/i, domains: ["kisr.edu.kw"], landing: "https://www.kisr.edu.kw/ar/careers-training/training-courses/" },
+  { organizer: /SACGC|صباح الأحمد/i, domains: ["sacgc.org"], landing: "https://sacgc.org/en/programs/programs-listing/" },
   { organizer: /CODED|كودد/i, domains: ["coded.kw"], landing: "https://coded.kw/companies/programs" },
   { organizer: /KFAS|التقدم العلمي/i, domains: ["kfas.org.kw"], landing: "https://apply.kfas.org.kw/" },
   { organizer: /جامعة الكويت.*مركز خدمة المجتمع/i, domains: ["ku.edu.kw"], landing: "https://ccsce.ku.edu.kw/" },
@@ -170,8 +175,7 @@ function officialSourceDestination(item: LearningOpportunity) {
 }
 
 function isOpportunityActive(item: LearningOpportunity, now: number) {
-  return !retiredOrganizerPattern.test(item.organizer)
-    && item.status === "open" && (item.aiReviewStatus === "verified" || item.verificationMethod === "official_source")
+  return item.status === "open" && (item.aiReviewStatus === "verified" || item.verificationMethod === "official_source")
     && Boolean(item.registrationEndsAt && Date.parse(item.registrationEndsAt) > now)
     && Boolean(item.startsAt && Date.parse(item.startsAt) > now);
 }
@@ -640,7 +644,7 @@ export default function KuwaitCoursesApp() {
           <article><span>02</span><h3>{copy.noGuessing}</h3><p>{copy.noGuessingCopy}</p></article>
           <article><span>03</span><h3>{copy.registrationOpen}</h3><p>{copy.registrationOpenCopy}</p></article>
         </div>
-        <div className="source-badges" aria-label={copy.primarySources}><span>CODED</span><span>KFAS</span></div>
+        <div className="source-badges" aria-label={copy.primarySources}>{monitoredOrganizers.map(name => <span key={name}>{organizerMark(name)}</span>)}</div>
         <div className="source-health" aria-label={copy.sourceHealth}>
           {monitoredOrganizers.map(name => {
             const source = sourceStates.find(item => item.name === name);
