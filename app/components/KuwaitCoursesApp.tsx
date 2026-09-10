@@ -195,7 +195,11 @@ export default function KuwaitCoursesApp() {
   const [language, setLanguage] = useState<SiteLanguage>("ar");
   const [botOpen, setBotOpen] = useState(false);
   const [botText, setBotText] = useState("");
-  const [botReplyMode, setBotReplyMode] = useState<"intro" | "found" | "empty">("intro");
+  const [botAnswer, setBotAnswer] = useState("");
+  const [botError, setBotError] = useState("");
+  const [botBusy, setBotBusy] = useState(false);
+  const botInFlight = useRef(false);
+  const botHistory = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
   const [botResults, setBotResults] = useState<LearningOpportunity[]>([]);
   const [clock, setClock] = useState(() => Date.now());
   const catalogRef = useRef<HTMLElement>(null);
@@ -381,38 +385,42 @@ export default function KuwaitCoursesApp() {
     setGovernorate("الكل");
   }
 
-  function askBot(text: string) {
+  async function askBot(text: string) {
     const prompt = text.trim();
-    if (!prompt) return;
+    if (!prompt || botInFlight.current) return;
+    botInFlight.current = true;
+    setBotBusy(true);
+    setBotError("");
     setBotText("");
-    let nextCategory = "الكل";
-    let nextKind: OpportunityKind | "all" = "all";
-    let nextMode: OpportunityMode | "all" = "all";
-    let nextAge: number | null = null;
-    if (/ذكاء|برمج|روبوت|تقني|\bai\b|artificial intelligence|program|coding|robot|tech/i.test(prompt)) nextCategory = "التقنية والذكاء الاصطناعي";
-    else if (/هندس|طاقة|كهرب|مدني|engineer|energy|electrical|civil/i.test(prompt)) nextCategory = "الهندسة والطاقة";
-    else if (/صحة|إسعاف|سلامة|health|first aid|safety/i.test(prompt)) nextCategory = "الصحة والسلامة";
-    else if (/فن|خزف|إبداع|تصميم|art|pottery|creative|design/i.test(prompt)) nextCategory = "الفنون والإبداع";
-    else if (/إدارة|مهار|عرض|كتابة|business|management|skill|leadership|writing/i.test(prompt)) nextCategory = "الأعمال والمهارات";
-    if (/ورشة|workshop/i.test(prompt)) nextKind = "workshop";
-    if (/معسكر|bootcamp|camp/i.test(prompt)) nextKind = "camp";
-    if (/أونلاين|اونلاين|عن بعد|online|remote/i.test(prompt)) nextMode = "online";
-    if (/حضوري|in[ -]?person|onsite/i.test(prompt)) nextMode = "in_person";
-    const foundAge = prompt.match(/\d{1,2}/)?.[0];
-    if (foundAge) nextAge = Math.min(65, Math.max(6, Number(foundAge)));
-    const matches = activeOpportunities.filter((item) =>
-      (nextCategory === "الكل" || item.category === nextCategory) &&
-      (nextKind === "all" || item.kind === nextKind) &&
-      (nextMode === "all" || item.mode === nextMode) &&
-      ageMatches(item, nextAge),
-    ).slice(0, 3);
-    setCategory(nextCategory);
-    setSubcategory("الكل");
-    setKind(nextKind);
-    setMode(nextMode);
-    setAge(nextAge);
-    setBotResults(matches);
-    setBotReplyMode(matches.length ? "found" : "empty");
+    setBotResults([]);
+    try {
+      if (window.location.hostname === "saud2333.github.io") {
+        setBotError("hosted_site_required");
+        setBotText(prompt);
+        return;
+      }
+      const response = await fetch("/api/mirsad/chat", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: prompt, locale: language, history: botHistory.current.slice(-8) }),
+        signal: AbortSignal.timeout(50_000),
+      });
+      const result = await response.json();
+      if (!response.ok || typeof result.reply !== "string") {
+        setBotError(result.error || "provider_unavailable");
+        setBotText(prompt);
+        return;
+      }
+      setBotAnswer(result.reply);
+      botHistory.current = [...botHistory.current, { role: "user", content: prompt }, { role: "assistant", content: result.reply }].slice(-8) as typeof botHistory.current;
+      const ids: string[] = Array.isArray(result.opportunity_ids) ? result.opportunity_ids : [];
+      setBotResults(activeOpportunities.filter(item => ids.includes(item.id)));
+    } catch {
+      setBotError("provider_unavailable");
+      setBotText(prompt);
+    } finally {
+      botInFlight.current = false;
+      setBotBusy(false);
+    }
   }
 
   function handleBotSubmit(event: FormEvent) {
@@ -420,11 +428,14 @@ export default function KuwaitCoursesApp() {
     askBot(botText);
   }
 
-  const botReply = botReplyMode === "intro"
-    ? copy.botIntro
-    : botReplyMode === "found"
-      ? copy.botFound.replace("{count}", currentBotResults.length.toLocaleString(locale))
-      : copy.botNoMatch;
+  const botReply = botBusy ? (language === "ar" ? "جارٍ مراجعة الدورات وتجهيز الرد…" : "Reviewing courses and preparing your reply…") : botAnswer || copy.botIntro;
+  const botErrorText = botError === "billing_required"
+    ? (language === "ar" ? "المساعد متوقف مؤقتًا؛ يحتاج مالك الموقع إلى إضافة رصيد لخدمة الذكاء الاصطناعي." : "The assistant is temporarily unavailable. The site owner needs to add AI service credit.")
+    : botError === "rate_limit"
+      ? (language === "ar" ? "طلبات كثيرة حاليًا، جرّب بعد دقيقة." : "Too many requests. Please try again in a minute.")
+      : botError === "hosted_site_required"
+        ? (language === "ar" ? "المساعد متاح على موقع مرصاد الرئيسي." : "The assistant is available on the main Mirsad website.")
+        : (language === "ar" ? "تعذّر الاتصال بالمساعد الآن. سؤالك محفوظ في الخانة؛ جرّب مرة ثانية." : "The assistant could not be reached. Your question is kept below; please try again.");
 
   return (
     <main className="mirsad-shell" lang={language} dir={language === "ar" ? "rtl" : "ltr"}>
@@ -656,13 +667,15 @@ export default function KuwaitCoursesApp() {
         <section>
           <header><div className="mini-bot">✦</div><div><b>{copy.guide}</b><small><i /> {copy.ready}</small></div><button type="button" aria-label={copy.close} onClick={() => setBotOpen(false)}>×</button></header>
           <div className="chat-body">
-            <p className="bot-message">{botReply}</p>
+            <p className="bot-message" aria-live="polite" style={{ whiteSpace: "pre-wrap" }}>{botReply}</p>
+            {botError && <p role="alert">{botErrorText}</p>}
+            {botError === "hosted_site_required" && <a href="https://civilkuwait.hsah-otb.chatgpt.site/">{copy.askMirsad}</a>}
             {currentBotResults.map((item) => <button className="bot-result" type="button" key={item.id} onClick={() => { setSelected(item); setBotOpen(false); }}><span><small>{categoryLabel(item.category, language)}</small><b dir="auto">{opportunityTitle(item, language)}</b></span><i>{directionArrow}</i></button>)}
             <div className="quick-prompts">
-              {copy.quickPrompts.map((prompt) => <button type="button" key={prompt} onClick={() => askBot(prompt)}>{prompt}</button>)}
+              {copy.quickPrompts.map((prompt) => <button type="button" disabled={botBusy} key={prompt} onClick={() => askBot(prompt)}>{prompt}</button>)}
             </div>
           </div>
-          <form onSubmit={handleBotSubmit}><input autoFocus value={botText} onChange={(event) => setBotText(event.target.value)} placeholder={copy.botPlaceholder} /><button type="submit" aria-label={copy.send}>{directionArrow}</button></form>
+          <form onSubmit={handleBotSubmit}><input autoFocus maxLength={2000} value={botText} onChange={(event) => setBotText(event.target.value)} placeholder={copy.botPlaceholder} /><button disabled={botBusy || !botText.trim()} type="submit" aria-label={copy.send}>{directionArrow}</button></form>
           <p className="bot-disclaimer">{copy.botDisclaimer}</p>
         </section>
       </div>}
