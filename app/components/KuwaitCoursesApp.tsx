@@ -5,6 +5,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "../lib/supabase";
 import { emptyCatalogMode } from "../lib/catalog-status.mjs";
+import { answerMirsad, type BotContext } from "../lib/mirsad-bot";
 import {
   ageLabel,
   aiReviewLabel,
@@ -199,11 +200,12 @@ export default function KuwaitCoursesApp() {
   const [language, setLanguage] = useState<SiteLanguage>("ar");
   const [botOpen, setBotOpen] = useState(false);
   const [botText, setBotText] = useState("");
-  const [botAnswer, setBotAnswer] = useState("");
-  const [botError, setBotError] = useState("");
-  const [botBusy, setBotBusy] = useState(false);
-  const botInFlight = useRef(false);
-  const botHistory = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [botMessages, setBotMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const botContext = useRef<BotContext>({});
+  const chatBodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (chatBodyRef.current) chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
+  }, [botMessages]);
   const [botResults, setBotResults] = useState<LearningOpportunity[]>([]);
   const [clock, setClock] = useState(() => Date.now());
   const catalogRef = useRef<HTMLElement>(null);
@@ -389,57 +391,20 @@ export default function KuwaitCoursesApp() {
     setGovernorate("الكل");
   }
 
-  async function askBot(text: string) {
+  function askBot(text: string) {
     const prompt = text.trim();
-    if (!prompt || botInFlight.current) return;
-    botInFlight.current = true;
-    setBotBusy(true);
-    setBotError("");
+    if (!prompt) return;
+    const answer = answerMirsad(prompt, activeOpportunities, language, botContext.current, dataMode === "live");
+    botContext.current = answer.context;
+    setBotMessages(messages => [...messages, { role: "user" as const, content: prompt }, { role: "assistant" as const, content: answer.reply }].slice(-20));
     setBotText("");
-    setBotResults([]);
-    try {
-      if (window.location.hostname === "saud2333.github.io") {
-        setBotError("hosted_site_required");
-        setBotText(prompt);
-        return;
-      }
-      const response = await fetch("/api/mirsad/chat", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: prompt, locale: language, history: botHistory.current.slice(-8) }),
-        signal: AbortSignal.timeout(50_000),
-      });
-      const result = await response.json();
-      if (!response.ok || typeof result.reply !== "string") {
-        setBotError(result.error || "provider_unavailable");
-        setBotText(prompt);
-        return;
-      }
-      setBotAnswer(result.reply);
-      botHistory.current = [...botHistory.current, { role: "user", content: prompt }, { role: "assistant", content: result.reply }].slice(-8) as typeof botHistory.current;
-      const ids: string[] = Array.isArray(result.opportunity_ids) ? result.opportunity_ids : [];
-      setBotResults(activeOpportunities.filter(item => ids.includes(item.id)));
-    } catch {
-      setBotError("provider_unavailable");
-      setBotText(prompt);
-    } finally {
-      botInFlight.current = false;
-      setBotBusy(false);
-    }
+    setBotResults(answer.rows);
   }
 
   function handleBotSubmit(event: FormEvent) {
     event.preventDefault();
     askBot(botText);
   }
-
-  const botReply = botBusy ? (language === "ar" ? "جارٍ مراجعة الدورات وتجهيز الرد…" : "Reviewing courses and preparing your reply…") : botAnswer || copy.botIntro;
-  const botErrorText = botError === "billing_required"
-    ? (language === "ar" ? "المساعد متوقف مؤقتًا؛ يحتاج مالك الموقع إلى إضافة رصيد لخدمة الذكاء الاصطناعي." : "The assistant is temporarily unavailable. The site owner needs to add AI service credit.")
-    : botError === "rate_limit"
-      ? (language === "ar" ? "طلبات كثيرة حاليًا، جرّب بعد دقيقة." : "Too many requests. Please try again in a minute.")
-      : botError === "hosted_site_required"
-        ? (language === "ar" ? "المساعد متاح على موقع مرصاد الرئيسي." : "The assistant is available on the main Mirsad website.")
-        : (language === "ar" ? "تعذّر الاتصال بالمساعد الآن. سؤالك محفوظ في الخانة؛ جرّب مرة ثانية." : "The assistant could not be reached. Your question is kept below; please try again.");
 
   return (
     <main className="mirsad-shell" lang={language} dir={language === "ar" ? "rtl" : "ltr"}>
@@ -669,18 +634,17 @@ export default function KuwaitCoursesApp() {
       {botOpen && <div className="bot-dialog" role="dialog" aria-modal="true" aria-label={copy.assistantAria}>
         <button className="dialog-backdrop" type="button" onClick={() => setBotOpen(false)} aria-label={copy.close} />
         <section>
-          <header><div className="mini-bot">✦</div><div><b>{copy.guide}</b><small><i /> {copy.ready}</small></div><button type="button" aria-label={copy.close} onClick={() => setBotOpen(false)}>×</button></header>
-          <div className="chat-body">
-            <p className="bot-message" aria-live="polite" style={{ whiteSpace: "pre-wrap" }}>{botReply}</p>
-            {botError && <p role="alert">{botErrorText}</p>}
-            {botError === "hosted_site_required" && <a href="https://civilkuwait.hsah-otb.chatgpt.site/">{copy.askMirsad}</a>}
+          <header><div className="mini-bot">✦</div><div><b>{language === "ar" ? "بوت مرصاد" : "Mirsad Bot"}</b><small><i /> {copy.ready}</small></div><button type="button" aria-label={copy.close} onClick={() => setBotOpen(false)}>×</button></header>
+          <div className="chat-body" ref={chatBodyRef}>
+            <p className="bot-message">{language === "ar" ? "هلا! أنا بوت مرصاد. اسألني عن الدورات والتسجيل والعمر والرسوم والمواعيد، أو اكتب اسم الدورة." : "Hi! I’m Mirsad Bot. Ask about courses, registration, ages, fees and dates, or enter a course title."}</p>
+            <div role="log" aria-live="polite">{botMessages.map((message, index) => <p key={index} className={`bot-message ${message.role === "user" ? "bot-user-message" : ""}`} style={{ whiteSpace: "pre-wrap" }}><b>{message.role === "user" ? (language === "ar" ? "أنت" : "You") : (language === "ar" ? "بوت مرصاد" : "Mirsad Bot")}</b><br />{message.content}</p>)}</div>
             {currentBotResults.map((item) => <button className="bot-result" type="button" key={item.id} onClick={() => { setSelected(item); setBotOpen(false); }}><span><small>{categoryLabel(item.category, language)}</small><b dir="auto">{opportunityTitle(item, language)}</b></span><i>{directionArrow}</i></button>)}
             <div className="quick-prompts">
-              {copy.quickPrompts.map((prompt) => <button type="button" disabled={botBusy} key={prompt} onClick={() => askBot(prompt)}>{prompt}</button>)}
+              {[...copy.quickPrompts, language === "ar" ? "شلون أسجل؟" : "How do I register?", language === "ar" ? "كل الفرص" : "All courses"].map((prompt) => <button type="button" key={prompt} onClick={() => askBot(prompt)}>{prompt}</button>)}
             </div>
           </div>
-          <form onSubmit={handleBotSubmit}><input autoFocus maxLength={2000} value={botText} onChange={(event) => setBotText(event.target.value)} placeholder={copy.botPlaceholder} /><button disabled={botBusy || !botText.trim()} type="submit" aria-label={copy.send}>{directionArrow}</button></form>
-          <p className="bot-disclaimer">{copy.botDisclaimer}</p>
+          <form onSubmit={handleBotSubmit}><input autoFocus aria-label={copy.botPlaceholder} maxLength={2000} value={botText} onChange={(event) => setBotText(event.target.value)} placeholder={copy.botPlaceholder} /><button disabled={!botText.trim()} type="submit" aria-label={copy.send}>{directionArrow}</button></form>
+          <p className="bot-disclaimer">{language === "ar" ? "بوت للدورات واستخدام الموقع، يعمل بدون AI. المعلومات غير المعلنة يوضحها لك ولا يضمن المقاعد." : "A course and site-help bot, with no AI service. Unpublished information is marked as unknown; seats are not guaranteed."}</p>
         </section>
       </div>}
 
