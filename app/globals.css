@@ -262,6 +262,13 @@ footer > a { justify-self: end; color: var(--cyan); font-size: 0.78rem; font-wei
 .bot-result small { color: var(--cyan); font-size: 0.64rem; }
 .bot-result b { font-size: 0.78rem; }
 .quick-prompts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 17px; }
+.bot-suggestions { margin-top: 16px; }
+.bot-suggestions > p { font-size: 0.9rem; font-weight: 700; }
+.bot-suggestions details { border-top: 1px solid var(--line); padding: 10px 0; }
+.bot-suggestions summary { cursor: pointer; font-size: 0.9rem; }
+.bot-suggestions .quick-prompts { margin: 10px 0; }
+.bot-suggestions .quick-prompts button { font-size: 0.875rem; padding: 9px 11px; text-align: start; }
+.bot-suggestions > details > small { display: block; color: var(--muted); font-size: 0.8rem; }
 .quick-prompts button { padding: 7px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface); cursor: pointer; font-size: 0.67rem; }
 .bot-dialog form { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 13px; border-top: 1px solid var(--line); background: var(--surface); }
 .bot-dialog form input { min-width: 0; padding: 12px 13px; border: 1px solid var(--line); border-radius: 10px; outline: 0; color: var(--ink); background: var(--surface-2); }

@@ -5,7 +5,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "../lib/supabase";
 import { emptyCatalogMode } from "../lib/catalog-status.mjs";
-import { answerMirsad, type BotContext } from "../lib/mirsad-bot";
+import { answerMirsad, botFaqs, botGroups, type BotContext } from "../lib/mirsad-bot";
 import {
   ageLabel,
   aiReviewLabel,
@@ -391,10 +391,10 @@ export default function KuwaitCoursesApp() {
     setGovernorate("الكل");
   }
 
-  function askBot(text: string) {
+  function askBot(text: string, faqId?: string, fresh = false) {
     const prompt = text.trim();
     if (!prompt) return;
-    const answer = answerMirsad(prompt, activeOpportunities, language, botContext.current, dataMode === "live");
+    const answer = answerMirsad(prompt, activeOpportunities, language, fresh ? {} : botContext.current, dataMode === "live", faqId);
     botContext.current = answer.context;
     setBotMessages(messages => [...messages, { role: "user" as const, content: prompt }, { role: "assistant" as const, content: answer.reply }].slice(-20));
     setBotText("");
@@ -639,8 +639,12 @@ export default function KuwaitCoursesApp() {
             <p className="bot-message">{language === "ar" ? "هلا! أنا بوت مرصاد. اسألني عن الدورات والتسجيل والعمر والرسوم والمواعيد، أو اكتب اسم الدورة." : "Hi! I’m Mirsad Bot. Ask about courses, registration, ages, fees and dates, or enter a course title."}</p>
             <div role="log" aria-live="polite">{botMessages.map((message, index) => <p key={index} className={`bot-message ${message.role === "user" ? "bot-user-message" : ""}`} style={{ whiteSpace: "pre-wrap" }}><b>{message.role === "user" ? (language === "ar" ? "أنت" : "You") : (language === "ar" ? "بوت مرصاد" : "Mirsad Bot")}</b><br />{message.content}</p>)}</div>
             {currentBotResults.map((item) => <button className="bot-result" type="button" key={item.id} onClick={() => { setSelected(item); setBotOpen(false); }}><span><small>{categoryLabel(item.category, language)}</small><b dir="auto">{opportunityTitle(item, language)}</b></span><i>{directionArrow}</i></button>)}
-            <div className="quick-prompts">
-              {[...copy.quickPrompts, language === "ar" ? "شلون أسجل؟" : "How do I register?", language === "ar" ? "كل الفرص" : "All courses"].map((prompt) => <button type="button" key={prompt} onClick={() => askBot(prompt)}>{prompt}</button>)}
+            <div className="bot-suggestions">
+              <p>{language === "ar" ? "أسئلة جاهزة — اختر موضوعًا" : "Ready-to-answer questions — choose a topic"}</p>
+              {botGroups.map(group => <details key={group.id}><summary>{group[language]} <small>({botFaqs.filter(item => item.group === group.id).length})</small></summary><div className="quick-prompts">{botFaqs.filter(item => item.group === group.id).map(item => <button type="button" key={item.id} onClick={() => askBot(item[language], item.id)}>{item[language]}</button>)}</div></details>)}
+              <details><summary>{language === "ar" ? "ابحث في الدورات المتاحة" : "Search available courses"}</summary><div className="quick-prompts">
+                {[language === "ar" ? "كل الفرص" : "All courses", ...copy.quickPrompts, language === "ar" ? "دورات مجانية" : "Free courses", language === "ar" ? "دورات أونلاين" : "Online courses", "CODED", "KFAS", "KISR", "KGBC", "SACGC"].map(prompt => <button type="button" key={prompt} onClick={() => askBot(prompt, undefined, true)}>{prompt}</button>)}
+              </div><small>{language === "ar" ? "نتائج البحث حسب الإعلانات الحالية؛ قد لا تتوفر فرصة تطابق الشروط." : "Search depends on current announcements; matching opportunities may not be available."}</small></details>
             </div>
           </div>
           <form onSubmit={handleBotSubmit}><input autoFocus aria-label={copy.botPlaceholder} maxLength={2000} value={botText} onChange={(event) => setBotText(event.target.value)} placeholder={copy.botPlaceholder} /><button disabled={!botText.trim()} type="submit" aria-label={copy.send}>{directionArrow}</button></form>
