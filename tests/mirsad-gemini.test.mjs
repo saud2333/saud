@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-test('FAQ selection has no free input or AI requests and retires the old endpoint', async () => {
+test('FAQ selection and local course search stay client-side and retire the old endpoint', async () => {
   const ui = await readFile(new URL('../app/components/KuwaitCoursesApp.tsx', import.meta.url), 'utf8');
   const dialog = ui.slice(ui.indexOf('{botOpen &&'), ui.indexOf('{selected &&'));
-  assert.doesNotMatch(dialog, /<input|<textarea|contentEditable|<form/);
+  assert.match(dialog, /<input/);
+  assert.match(dialog, /sendBotQuestion/);
   assert.match(dialog, /askBot\(item.id\)/);
   assert.match(ui, /item.answerAr : item.answerEn/);
   assert.doesNotMatch(ui, /api\/mirsad\/chat|Google Gemini|botBusy/);

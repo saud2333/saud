@@ -1,5 +1,7 @@
 import { officialUrl } from "./publication-policy.mjs";
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { compactEmbeddedPayloads } from "./embedded-media.mjs";
 
 // Accounts verified against these official pages on 2026-09-05.
@@ -28,6 +30,7 @@ function textOnly(html) {
 
 const announcementImageUrl = (url, source) => officialUrl(url, source)
   && !/logo|icon|avatar|flag|loader|loading|spinner|\.svg(?:[?#]|$)/i.test(url);
+const execFileAsync = promisify(execFile);
 
 export async function boundedText(response, maxBytes = 2_000_000) {
   if (Number(response.headers.get("content-length")) > maxBytes) { await response.body?.cancel(); throw new Error("Source exceeds size limit"); }
@@ -173,17 +176,19 @@ async function xDocuments(source, social, env, fetchImpl) {
   }));
 }
 
-async function instagramDocuments(source, social, env, fetchImpl) {
-  if (!/^v\d+\.\d+$/.test(env.META_GRAPH_VERSION) || !/^\d+$/.test(env.INSTAGRAM_BUSINESS_ACCOUNT_ID)) throw new Error("Invalid Instagram API configuration");
-  const url = new URL(`https://graph.facebook.com/${env.META_GRAPH_VERSION}/${env.INSTAGRAM_BUSINESS_ACCOUNT_ID}`);
-  url.searchParams.set("fields", `business_discovery.username(${social.instagram}){username,media.limit(50){id,caption,media_type,media_url,permalink,timestamp,children{media_type,media_url}}}`);
-  const feed = await apiJson(url.href, env.META_ACCESS_TOKEN, fetchImpl);
-  const profile = feed.business_discovery;
-  if (profile?.username?.toLowerCase() !== social.instagram) throw new Error("Unexpected Instagram account");
-  return (profile.media?.data ?? []).filter((post) => /^https:\/\/(www\.)?instagram\.com\/(p|reel)\/[\w-]+\/?$/.test(post.permalink)).map((post) => ({
-    url: post.permalink, text: post.caption ?? "",
-    links: ((post.caption ?? "").match(/https:\/\/[^\s<>"']+/g) ?? []).filter((link) => officialUrl(link, source)),
-    images: [post, ...(post.children?.data ?? [])].filter((item) => item.media_type === "IMAGE").map((item) => item.media_url).filter((url) => /^https:\/\/[^/]+\.(cdninstagram\.com|fbcdn\.net)\//.test(url)).slice(0, 4),
+async function instagramDocuments(source, social, env) {
+  const { stdout } = await execFileAsync(env.INSTALOADER_PYTHON || "python", [
+    new URL("./instagram-instaloader.py", import.meta.url),
+    social.instagram,
+    "50",
+  ], { timeout: 90_000, maxBuffer: 4_000_000, windowsHide: true });
+  let posts;
+  try { posts = JSON.parse(stdout); } catch { throw new Error("Instaloader returned invalid JSON"); }
+  if (!Array.isArray(posts)) throw new Error("Instaloader returned an invalid post list");
+  return posts.filter((post) => typeof post?.url === "string" && typeof post?.caption === "string").map((post) => ({
+    url: post.url, text: post.caption, publishedAt: post.publishedAt ?? null,
+    links: (post.caption.match(/https:\/\/[^\s<>"')]+/g) ?? []).map((link) => link.replace(/[.,،؛]+$/, "")).filter((link) => officialUrl(link, source)),
+    images: (post.images ?? []).filter((url) => /^https:\/\/[^/]+\.(cdninstagram\.com|fbcdn\.net)\//.test(url)).slice(0, 4),
     candidates: [], channel: "instagram", accountUrl: `https://www.instagram.com/${social.instagram}/`, accountProofUrl: social.proof,
   }));
 }
@@ -199,7 +204,7 @@ export async function collectSocialDocuments(source, env = process.env, fetchImp
       return parseYoutubeFeed(await boundedText(response), source, social);
     }],
     ["x", social.x, Boolean(env.X_BEARER_TOKEN), () => xDocuments(source, social, env, fetchImpl)],
-    ["instagram", social.instagram, Boolean(env.META_ACCESS_TOKEN && env.INSTAGRAM_BUSINESS_ACCOUNT_ID && env.META_GRAPH_VERSION), () => instagramDocuments(source, social, env, fetchImpl)],
+    ["instagram", social.instagram, env.INSTALOADER_ENABLED === "true", () => instagramDocuments(source, social, env)],
   ];
   await Promise.all(tasks.map(async ([channel, account, configured, collect]) => {
     if (!account) { channels.push({ channel, status: "unverified_account" }); return; }

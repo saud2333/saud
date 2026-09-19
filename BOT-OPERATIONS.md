@@ -14,7 +14,7 @@ The bot refreshes evidence from the source on each pass, reconciles only the exa
 
 ## Coverage limits
 
-Instagram and X require their official API credentials and remain disconnected. Public YouTube feeds are discovery-only in deterministic mode: they can supply official website links, but video/image content is not automatically verified. No OCR or AI claim is made. Sources blocking server access are reported as partial/failed and retried at the next scheduled run.
+Instagram uses the bounded Instaloader reader for verified public accounts; X still requires official API credentials. Public YouTube feeds are discovery-only in deterministic mode: they can supply official website links, but video/image content is not automatically verified. No OCR or AI claim is made. Sources blocking server access are reported as partial/failed and retried at the next scheduled run.
 
 To opt into the separate AI pipeline later, provision the authorized OpenAI key and change `BOT_VERIFICATION_MODE` to `ai`. Its independent review checks remain intact. Setting a mode incorrectly fails preflight rather than changing catalog data.
 

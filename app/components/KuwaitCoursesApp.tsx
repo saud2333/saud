@@ -2,10 +2,10 @@
 
 /* eslint-disable @next/next/no-img-element -- static export and user-controlled source images require ordinary img elements. */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { getSupabaseClient } from "../lib/supabase";
 import { emptyCatalogMode } from "../lib/catalog-status.mjs";
-import { botFaqs, botGroups } from "../lib/mirsad-bot";
+import { answerMirsad, botFaqs, botGroups, type BotContext } from "../lib/mirsad-bot";
 import {
   ageLabel,
   aiReviewLabel,
@@ -200,6 +200,9 @@ export default function KuwaitCoursesApp() {
   const [language, setLanguage] = useState<SiteLanguage>("ar");
   const [botOpen, setBotOpen] = useState(false);
   const [botMessages, setBotMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [botInput, setBotInput] = useState("");
+  const [botContext, setBotContext] = useState<BotContext>({});
+  const [botResults, setBotResults] = useState<LearningOpportunity[]>([]);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (chatBodyRef.current) chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
@@ -391,6 +394,17 @@ export default function KuwaitCoursesApp() {
     const item = botFaqs.find(faq => faq.id === faqId);
     if (!item) return;
     setBotMessages(messages => [...messages, { role: "user" as const, content: item[language] }, { role: "assistant" as const, content: language === "ar" ? item.answerAr : item.answerEn }].slice(-20));
+  }
+
+  function sendBotQuestion(event: FormEvent) {
+    event.preventDefault();
+    const question = botInput.trim();
+    if (!question) return;
+    const response = answerMirsad(question, activeOpportunities, language, botContext, dataMode === "live");
+    setBotInput("");
+    setBotContext(response.context);
+    setBotResults(response.rows);
+    setBotMessages(messages => [...messages, { role: "user" as const, content: question }, { role: "assistant" as const, content: response.reply }].slice(-20));
   }
 
   return (
@@ -625,11 +639,16 @@ export default function KuwaitCoursesApp() {
           <div className="chat-body" ref={chatBodyRef}>
             <p className="bot-message">{language === "ar" ? "هلا فيك! اختر موضوعًا واضغط السؤال، وتظهر لك إجابته المحفوظة فورًا." : "Welcome! Choose a topic and select a question to see its saved answer instantly."}</p>
             <div role="log" aria-live="polite">{botMessages.map((message, index) => <p key={index} className={`bot-message ${message.role === "user" ? "bot-user-message" : ""}`} style={{ whiteSpace: "pre-wrap" }}><b>{message.role === "user" ? (language === "ar" ? "أنت" : "You") : "Mirsad Bot"}</b><br />{message.content}</p>)}</div>
+            {botResults.length > 0 && <div className="bot-course-results" aria-label={language === "ar" ? "نتائج بحث البوت" : "Bot search results"}>{botResults.map(item => <button type="button" key={item.id} onClick={() => setSelected(item)}><b dir="auto">{opportunityTitle(item, language)}</b><small>{item.organizer} · {item.announcementChannel === "instagram" ? "Instagram" : item.sourceUrl}</small></button>)}</div>}
             <div className="bot-suggestions">
               <p>{language === "ar" ? "أسئلة جاهزة — اختر موضوعًا" : "Ready-to-answer questions — choose a topic"}</p>
               {botGroups.map(group => <details key={group.id}><summary>{group[language]} <small>({botFaqs.filter(item => item.group === group.id).length})</small></summary><div className="quick-prompts">{botFaqs.filter(item => item.group === group.id).map(item => <button type="button" key={item.id} onClick={() => askBot(item.id)}>{item[language]}</button>)}</div></details>)}
               {botMessages.length > 0 && <button type="button" onClick={() => setBotMessages([])}>{language === "ar" ? "مسح المحادثة" : "Clear conversation"}</button>}
             </div>
+            <form className="bot-input" onSubmit={sendBotQuestion}>
+              <input value={botInput} onChange={event => setBotInput(event.target.value)} placeholder={language === "ar" ? "ابحث عن دورة من إنستغرام أو اكتب سؤالك…" : "Search Instagram courses or ask a question…"} aria-label={language === "ar" ? "سؤال البوت" : "Bot question"} />
+              <button type="submit">{language === "ar" ? "بحث" : "Search"}</button>
+            </form>
           </div>
           <p className="bot-disclaimer">{language === "ar" ? "إجابات محفوظة بدون ذكاء اصطناعي أو إرسال المحادثة لأي خدمة خارجية. تأكد من الجهة الرسمية قبل التسجيل." : "Saved answers, with no AI or conversation sent to an external service. Verify details with the organizer."}</p>
         </section>

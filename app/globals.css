@@ -257,6 +257,10 @@ footer > a { justify-self: end; color: var(--cyan); font-size: 0.78rem; font-wei
 .bot-dialog header > button, .detail-close { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 50%; color: white; background: transparent; cursor: pointer; font-size: 1.2rem; }
 .chat-body { padding: 22px; overflow: auto; background: var(--surface-2); }
 .bot-message { max-width: 90%; margin: 0 0 15px; padding: 13px 15px; border-radius: 14px 14px 4px 14px; color: var(--ink); background: var(--surface); box-shadow: 0 8px 26px rgba(6, 29, 45, 0.06); font-size: 0.87rem; }
+.bot-course-results { display: grid; gap: 8px; margin: -4px 0 15px; }
+.bot-course-results button { display: grid; gap: 4px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--surface-2); cursor: pointer; text-align: start; }
+.bot-course-results button:hover, .bot-course-results button:focus-visible { border-color: var(--cyan); }
+.bot-course-results small { color: var(--muted); font-size: 0.72rem; }
 .bot-result { display: flex; justify-content: space-between; align-items: center; gap: 14px; width: 100%; margin: 8px 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; text-align: right; background: var(--surface); cursor: pointer; }
 .bot-result > span { display: grid; }
 .bot-result small { color: var(--cyan); font-size: 0.64rem; }

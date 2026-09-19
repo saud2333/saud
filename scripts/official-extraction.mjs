@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { documentHash } from "./announcement-extraction.mjs";
 import { officialTimestamp, officialUrl, publicationIssues, REVIEW_POLICY_VERSION, UNANNOUNCED } from "./publication-policy.mjs";
+import { socialSources } from "./official-documents.mjs";
 
 export const OFFICIAL_VERIFIER_VERSION = "official-parser-v1";
 const sha = (value) => createHash("sha256").update(value).digest("hex");
@@ -146,9 +147,53 @@ export function extractCoded(document, source) {
   return [row];
 }
 
+function extractInstagram(document, source) {
+  if (document.channel !== "instagram" || !document.accountUrl || !document.images?.length) return [];
+  const text = document.text.trim();
+  const title = text.split(/\r?\n/).map((line) => line.trim()).find((line) => line && !/^https?:\/\//i.test(line));
+  const dateRange = text.match(/(?:from|من)\s+([A-Z][a-z]{2,8}\s+\d{1,2},?\s+20\d{2}|\d{1,2}[/-]\d{1,2}[/-]20\d{2})\s*(?:to|[-–—])\s*([A-Z][a-z]{2,8}\s+\d{1,2},?\s+20\d{2}|\d{1,2}[/-]\d{1,2}[/-]20\d{2})/i);
+  const deadline = text.match(/(?:registration|register|التسجيل|آخر موعد)[^.\n]{0,80}?(?:deadline|by|قبل|في)\s*[:\-]?\s*([A-Z][a-z]{2,8}\s+\d{1,2},?\s+20\d{2}|\d{1,2}[/-]\d{1,2}[/-]20\d{2})/i);
+  const parseDate = (value, end = false) => {
+    const english = value.match(/^([A-Z][a-z]{2,8})\s+(\d{1,2}),?\s+(20\d{2})$/i);
+    if (english) return end ? `${localMidnight(english[3], english[1], english[2])?.replace("T00:00:00", "T23:59:59") ?? ""}` : localMidnight(english[3], english[1], english[2]);
+    const numeric = value.match(/^(\d{1,2})[/-](\d{1,2})[/-](20\d{2})$/);
+    if (!numeric) return null;
+    const valueIso = `${numeric[3]}-${numeric[2].padStart(2, "0")}-${numeric[1].padStart(2, "0")}T${end ? "23:59:59" : "00:00:00"}+03:00`;
+    return Number.isFinite(officialTimestamp(valueIso)) ? valueIso : null;
+  };
+  const startsAt = dateRange ? parseDate(dateRange[1]) : null;
+  const endsAt = dateRange ? parseDate(dateRange[2], true) : null;
+  const registrationEndsAt = deadline ? parseDate(deadline[1], true) : null;
+  const registrationUrl = document.links.find((link) => officialUrl(link, source)) ?? null;
+  if (!title || !startsAt || !endsAt || !registrationEndsAt || !registrationUrl) return [];
+  const kind = /ورشة|workshop/i.test(title) ? "workshop" : /معسكر|bootcamp/i.test(title) ? "camp" : "course";
+  const mode = /عن بعد|اونلاين|online|virtual/i.test(text) ? "online" : /هجين|hybrid/i.test(text) ? "hybrid" : "in_person";
+  const category = /ذكاء|برمج|تقني|بيانات|ai|software|data|coding/i.test(text) ? "التقنية والذكاء الاصطناعي"
+    : /هندس|طاقة|energy|engineering/i.test(text) ? "الهندسة والطاقة" : "الأعمال والمهارات";
+  const row = baseRow(source, document, sha(`${document.url}|${title}`).slice(0, 24));
+  Object.assign(row, {
+    title_ar: title, title_en: title, description_ar: text.slice(0, 1800), kind, category, subcategory: title,
+    location: /online|virtual|عن بعد|اونلاين/i.test(text) ? "عن بعد" : "الكويت", mode,
+    starts_at: startsAt, ends_at: endsAt, registration_ends_at: registrationEndsAt,
+    duration_label: `${dateRange[1]} – ${dateRange[2]}`, schedule_label: dateRange[0],
+    registration_state: /closed|مغلق|انتهى/i.test(text) ? "closed" : "open",
+    registration_url: registrationUrl, image_url: document.images[0], announcement_channel: "instagram",
+    official_account_url: document.accountUrl, official_account_proof_url: document.accountProofUrl,
+  });
+  row.field_evidence = [
+    evidence("title", title), evidence("description", text), evidence("kind", title),
+    evidence("schedule", dateRange[0]), evidence("location", row.location), evidence("mode", text),
+    evidence("registration", deadline[0]),
+  ];
+  return [row];
+}
+
 export function validateOfficialRegistration(row, source, document, registrationDocument) {
   if (row.registration_url === document.url) return document;
-  if (source.key !== "coded" || !registrationDocument || registrationDocument.channel !== "website") return null;
+  if (!registrationDocument || registrationDocument.channel !== "website" || !officialUrl(row.registration_url, source)
+    || registrationDocument.url !== row.registration_url || !registrationDocument.links.includes(row.registration_url)) return null;
+  if (document.channel === "instagram") return registrationDocument;
+  if (source.key !== "coded") return null;
   const slug = new URL(document.url).pathname.match(/^\/bootcamps\/([a-z-]+)\/?$/)?.[1];
   const config = codedBootcamps[slug];
   if (!config || registrationDocument.url !== row.registration_url || !officialUrl(registrationDocument.url, source)) return null;
@@ -203,6 +248,7 @@ export function extractStructured(document, source) {
 }
 
 export function extractOfficial(document, source) {
+  if (document.channel === "instagram") return extractInstagram(document, source);
   if (document.channel !== "website" || !officialUrl(document.url, source)) return [];
   if (source.key === "kfas") return extractKfas(document, source);
   if (source.key === "coded") {
@@ -214,7 +260,9 @@ export function extractOfficial(document, source) {
 
 export function verifyOfficial(row, source, document, now = Date.now(), registrationDocument = null) {
   const issues = publicationIssues(row, source, document, now);
-  if (document.channel !== "website" || !officialUrl(document.url, source)) issues.push("source:not_official_website");
+  if (document.channel === "instagram"
+    ? (!document.accountUrl || document.accountProofUrl !== socialSources[source.key]?.proof || !/^https:\/\/(www\.)?instagram\.com\/[^/]+\/(?:p|reel)\//.test(document.url))
+    : (document.channel !== "website" || !officialUrl(document.url, source))) issues.push("source:not_official");
   if (!document.imageHashes?.length || document.imageHashes.length !== document.images.length) issues.push("image:not_checked");
   const checkedRegistration = validateOfficialRegistration(row, source, document, registrationDocument);
   if (!checkedRegistration) issues.push("registration:destination_not_verified");
