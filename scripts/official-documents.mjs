@@ -5,11 +5,10 @@ import { promisify } from "node:util";
 import { compactEmbeddedPayloads } from "./embedded-media.mjs";
 
 // Accounts verified against these official pages on 2026-09-05.
-// KISR Instagram remains unconnected: only an older printed handle was found.
 export const socialSources = {
   kgbc: { proof: "https://www.kuwaitgbc.com/home", instagram: "kuwaitgbc" },
   kfas: { proof: "https://apply.kfas.org.kw/", instagram: "kfasinfo", x: "kfasinfo", youtube: "UCW3oVwg7_mQ-_FOwmgYNyYg" },
-  kisr: { proof: "https://www.kisr.edu.kw/en/", x: "kisrofficial", youtube: "UC-RW8QO_nkdR-5MhHNB4-eQ" },
+  kisr: { proof: "https://www.kisr.edu.kw/en/", instagram: "kisrofficial", x: "kisrofficial", youtube: "UC-RW8QO_nkdR-5MhHNB4-eQ" },
   sacgc: { proof: "https://sacgc.org/en/", instagram: "sacgc_kw", x: "sacgc_kw", youtube: "UCMypXENNolyFNLyrRYUjRXQ" },
 };
 

@@ -104,6 +104,13 @@ test("social channels without credentials are explicitly unconfigured", async ()
   assert.equal(result.channels.find((item) => item.channel === "instagram").status, "not_configured");
 });
 
+test("KISR uses the confirmed official Instagram account", async () => {
+  const implementation = await readFile(new URL("../scripts/official-documents.mjs", import.meta.url), "utf8");
+  assert.match(implementation, /kisr: \{[^}]*instagram: "kisrofficial"/);
+  const result = await collectSocialDocuments({ ...source, key: "kisr" }, {}, async () => { throw new Error("must not request an unconfigured reader"); });
+  assert.equal(result.channels.find((item) => item.channel === "instagram").status, "not_configured");
+});
+
 test("extraction returns no invented course when a source announces nothing", async () => {
   const result = await extractAnnouncements({ document, source, apiKey: "test-key", fetchImpl: async (_, options) => {
     const body = JSON.parse(options.body);

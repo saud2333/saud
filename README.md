@@ -52,10 +52,10 @@ npm run dev
 | --- | --- | --- |
 | KGBC | Instagram: kuwaitgbc | [موقع المجلس](https://www.kuwaitgbc.com/home)، رابط Instagram في التذييل يحوّل للحساب |
 | KFAS | Instagram/X: kfasinfo، قناة YouTube المرتبطة | [بوابة المؤسسة](https://apply.kfas.org.kw/) |
-| KISR | X: kisrofficial، قناة YouTube المضمّنة | [موقع المعهد](https://www.kisr.edu.kw/en/) |
+| KISR | Instagram/X: kisrofficial، قناة YouTube المضمّنة | [موقع المعهد](https://www.kisr.edu.kw/en/) |
 | SACGC | Instagram/X: sacgc_kw، قناة YouTube المرتبطة | [موقع المركز](https://sacgc.org/en/) |
 
-لم يُفعّل Instagram لـ KISR لأن الموقع الحالي لا يقدّم رابط حساب مباشرًا واضحًا. Facebook وLinkedIn لا يملكان موصل قراءة مفعّلًا في هذا الإصدار. لا تدّعي المنصة متابعة كل شبكات التواصل. منشورات Instagram التي تحتوي إعلانًا مكتملًا ورابط تسجيل رسميًا تُفحص مع صفحة التسجيل ثم تظهر في الدليل مع رابط المنشور؛ المنشورات الناقصة تبقى محجوزة.
+تم تفعيل Instagram لـ KISR على الحساب الرسمي `kisrofficial`. Facebook وLinkedIn لا يملكان موصل قراءة مفعّلًا في هذا الإصدار. لا تدّعي المنصة متابعة كل شبكات التواصل. منشورات Instagram التي تحتوي إعلانًا مكتملًا ورابط تسجيل رسميًا تُفحص مع صفحة التسجيل ثم تظهر في الدليل مع رابط المنشور؛ المنشورات الناقصة تبقى محجوزة.
 
 تعمل خلاصات YouTube العامة دون مفتاح. [توثيق Google للخلاصات](https://developers.google.com/youtube/v3/guides/push_notifications). يحتاج X صلاحية قراءة Timeline. [توثيق X](https://docs.x.com/x-api/posts/timelines/integrate). يقرأ Instaloader الحسابات العامة ضمن حدود تشغيلية، وقد يوقف Instagram الطلبات أو يطلب تسجيل دخول؛ عند الفشل يسجل البوت القناة كفاشلة ولا يخفي بياناتًا سابقة بسبب فشل غير مثبت.
 
